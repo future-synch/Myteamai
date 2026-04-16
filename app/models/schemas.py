@@ -5,9 +5,18 @@ TS Section 5.1–5.6 — validation layer catches bad input before AI or CRM.
 
 from __future__ import annotations
 
+import re
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+_MAX_NAME_LEN = 500   # reject absurdly long strings (test 12 §8)
+_HTML_TAG_RE  = re.compile(r"<[^>]+>")
+
+
+def _sanitise(value: str) -> str:
+    """Strip HTML/script tags so injected content is never echoed verbatim."""
+    return _HTML_TAG_RE.sub("", value).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +55,11 @@ class WelcomeRequest(BaseModel):
     def validate_client_name(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Client name is required")
-        v = v.strip()
+        v = _sanitise(v)
+        if not v:
+            raise ValueError("Client name is required")
+        if len(v) > _MAX_NAME_LEN:
+            raise ValueError(f"Client name must not exceed {_MAX_NAME_LEN} characters")
         if len(v) < 2:
             raise ValueError("Client name must be at least 2 characters")
         return v
@@ -61,13 +74,24 @@ class WelcomeRequest(BaseModel):
     @field_validator("dispatch", mode="before")
     @classmethod
     def validate_dispatch(cls, v: object) -> bool:
-        if v is None:
+        if v is None or v == "":
             raise ValueError("dispatch field must be true or false")
         return v  # type: ignore[return-value]
 
+    @field_validator("budget_gbp", mode="before")
+    @classmethod
+    def validate_budget_type(cls, v: object) -> object:
+        if v is None:
+            return v
+        if isinstance(v, float) and not v.is_integer():
+            raise ValueError("Budget must be a whole number")
+        return v
+
     @field_validator("budget_gbp")
     @classmethod
-    def validate_budget(cls, v: Optional[int]) -> Optional[int]:
+    def validate_budget_value(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("Budget must be a positive number")
         if v is not None and v < 100_000:
             raise ValueError("Budget must be at least £100,000")
         return v
@@ -87,10 +111,12 @@ class RegisterApplicantRequest(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
-    budget: int = Field(ge=100_000)
+    budget: int = Field(ge=1)
     bedrooms_min: int = Field(ge=1)
-    property_types: List[Literal["house", "flat", "maisonette"]]
-    financing: Literal["mortgage", "cash", "help_to_buy", "shared_ownership"]
+    # TS Section 5.2: valid property types include "any"
+    property_types: List[Literal["house", "flat", "maisonette", "any"]]
+    # TS Section 5.2: financing enum (confirmed with John 16 April 2026)
+    financing: Literal["cash", "mortgage_aip", "mortgage_no_aip", "unknown"]
     preferred_channel: Literal["email", "phone", "whatsapp"]
     source: str
     bedrooms_max: Optional[int] = None
@@ -146,14 +172,20 @@ class ValuationBriefResponse(BaseModel):
 
 # ---------------------------------------------------------------------------
 # fn_draft_outreach  (TS Section 5.5)
+# recipient_type and channel confirmed with spec 16 April 2026
 # ---------------------------------------------------------------------------
 
 class DraftOutreachRequest(BaseModel):
     recipient_name: str
-    recipient_type: Literal["client", "applicant"]
-    channel: Literal["email", "letter", "whatsapp"]
+    # TS Section 5.5: who to send outreach to
+    recipient_type: Literal[
+        "long_term_resident", "recent_enquirer", "warm_lead", "lapsed"
+    ]
+    # TS Section 5.5: delivery channel
+    channel: Literal["email", "handwritten_note", "letter"]
     agent_name: str
     context_notes: Optional[str] = None
+    property_mention: Optional[str] = None
 
 
 class DraftOutreachResponse(BaseModel):
