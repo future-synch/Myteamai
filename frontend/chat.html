@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Team AI — Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .brand { font-weight: 700; font-size: 1.05rem; }
+    header .logout { font-size: 0.8rem; cursor: pointer; color: #a5b4fc; }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    .sidebar {
+      width: 220px;
+      background: #fff;
+      border-right: 1px solid #e5e7eb;
+      padding: 1rem 0.75rem;
+      overflow-y: auto;
+    }
+    .sidebar h3 { font-size: 0.75rem; text-transform: uppercase; color: #9ca3af; margin-bottom: 0.75rem; }
+    .fn-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: none;
+      background: none;
+      font-size: 0.88rem;
+      cursor: pointer;
+      color: #374151;
+      margin-bottom: 0.25rem;
+      transition: background 0.15s;
+    }
+    .fn-btn:hover, .fn-btn.active { background: #ede9fe; color: #4f46e5; font-weight: 500; }
+    .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .messages { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .msg { max-width: 75%; padding: 0.75rem 1rem; border-radius: 12px; font-size: 0.92rem; line-height: 1.5; }
+    .msg.bot { background: #fff; border: 1px solid #e5e7eb; align-self: flex-start; }
+    .msg.user { background: #4f46e5; color: #fff; align-self: flex-end; }
+    .msg.error { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; align-self: flex-start; }
+    .capabilities { margin-top: 0.5rem; }
+    .capabilities li { font-size: 0.82rem; margin-left: 1.25rem; margin-top: 0.2rem; }
+    .form-panel {
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      padding: 1rem 1.5rem;
+    }
+    .form-panel.hidden { display: none; }
+    .form-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .form-group { flex: 1; min-width: 160px; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: #374151; margin-bottom: 0.3rem; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 0.45rem 0.7rem; border: 1.5px solid #d1d5db;
+      border-radius: 7px; font-size: 0.88rem; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: #4f46e5; }
+    .form-group input.error, .form-group select.error { border-color: #ef4444; }
+    .field-error { font-size: 0.75rem; color: #ef4444; min-height: 1rem; }
+    .form-actions { display: flex; justify-content: flex-end; }
+    .send-btn {
+      padding: 0.5rem 1.5rem;
+      background: #4f46e5; color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
+    .send-btn:hover { background: #4338ca; }
+    .send-btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .free-input { display: flex; gap: 0.5rem; padding: 0.75rem 1.5rem; background: #fff; border-top: 1px solid #e5e7eb; }
+    .free-input input { flex: 1; padding: 0.6rem 0.9rem; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; outline: none; }
+    .free-input input:focus { border-color: #4f46e5; }
+    .free-input button { padding: 0.6rem 1.2rem; background: #4f46e5; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">My Team AI</span>
+    <span class="logout" onclick="logout()">Sign out</span>
+  </header>
+
+  <div class="main">
+    <nav class="sidebar">
+      <h3>Functions</h3>
+      <button class="fn-btn" onclick="showForm('welcome')">Welcome Client</button>
+      <button class="fn-btn" onclick="showForm('register')">Register Applicant</button>
+      <button class="fn-btn" onclick="showForm('match')">Match Applicants</button>
+      <button class="fn-btn" onclick="showForm('valuation')">Valuation Brief</button>
+      <button class="fn-btn" onclick="showForm('outreach')">Draft Outreach</button>
+      <button class="fn-btn" onclick="showForm('kyc')">KYC Status</button>
+    </nav>
+
+    <div class="chat-area">
+      <div class="messages" id="messages">
+        <div class="msg bot">Hello! I'm your My Team AI assistant. Select a function from the left or type a request below.</div>
+      </div>
+
+      <!-- Welcome Client Form -->
+      <div class="form-panel hidden" id="form-welcome">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Client Name *</label>
+            <input type="text" id="w-client_name" placeholder="e.g. James Hyde" />
+            <div class="field-error" id="err-w-client_name"></div>
+          </div>
+          <div class="form-group">
+            <label>Source *</label>
+            <select id="w-source">
+              <option value="">Select…</option>
+              <option>Rightmove</option><option>Zoopla</option>
+              <option>Referral</option><option>Direct</option><option>Other</option>
+            </select>
+            <div class="field-error" id="err-w-source"></div>
+          </div>
+          <div class="form-group">
+            <label>Agent Name *</label>
+            <input type="text" id="w-agent_name" placeholder="Your name" />
+            <div class="field-error" id="err-w-agent_name"></div>
+          </div>
+          <div class="form-group">
+            <label>Budget (£)</label>
+            <input type="number" id="w-budget_gbp" placeholder="Optional — e.g. 2000000" />
+            <div class="field-error" id="err-w-budget_gbp"></div>
+          </div>
+          <div class="form-group">
+            <label>Dispatch to HubSpot</label>
+            <select id="w-dispatch">
+              <option value="false">No — draft only</option>
+              <option value="true">Yes — send to HubSpot</option>
+            </select>
+            <div class="field-error" id="err-w-dispatch"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="send-btn" onclick="submitWelcome()">Generate Welcome</button>
+        </div>
+      </div>
+
+      <!-- Match Applicants Form -->
+      <div class="form-panel hidden" id="form-match">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Property Reference *</label>
+            <input type="text" id="m-property_ref" placeholder="e.g. 22 Abbotsbury Road" />
+            <div class="field-error" id="err-m-property_ref"></div>
+          </div>
+          <div class="form-group">
+            <label>Max Results (1–20)</label>
+            <input type="number" id="m-max_results" value="5" min="1" max="20" />
+            <div class="field-error" id="err-m-max_results"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="send-btn" onclick="submitMatch()">Find Matches</button>
+        </div>
+      </div>
+
+      <!-- Free-text input -->
+      <div class="free-input">
+        <input type="text" id="freeText" placeholder="Or type your request here…" onkeydown="if(event.key==='Enter')sendFree()" />
+        <button onclick="sendFree()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/';
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/';
+    }
+
+    function showForm(name) {
+      document.querySelectorAll('.form-panel').forEach(p => p.classList.add('hidden'));
+      const panel = document.getElementById('form-' + name);
+      if (panel) panel.classList.remove('hidden');
+    }
+
+    function addMsg(text, type = 'bot') {
+      const msgs = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'msg ' + type;
+      div.innerHTML = text;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function fieldError(id, msg) {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = msg; }
+      const inp = document.getElementById(id.replace('err-', ''));
+      if (inp) inp.classList.toggle('error', !!msg);
+    }
+
+    function clearErrors(prefix) {
+      document.querySelectorAll(`[id^="err-${prefix}"]`).forEach(el => {
+        el.textContent = '';
+        const inp = document.getElementById(el.id.replace('err-', ''));
+        if (inp) inp.classList.remove('error');
+      });
+    }
+
+    // Blur validation
+    ['w-client_name','w-agent_name','w-source','m-property_ref'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('blur', () => {
+        if (!el.value.trim()) fieldError('err-' + id, el.tagName === 'SELECT' ? 'Required' : el.previousElementSibling.textContent.replace(' *','') + ' is required');
+        else fieldError('err-' + id, '');
+      });
+      el.addEventListener('input', () => {
+        if (document.getElementById('err-' + id).textContent) fieldError('err-' + id, '');
+      });
+    });
+
+    async function submitWelcome() {
+      clearErrors('w-');
+      let valid = true;
+      const name   = document.getElementById('w-client_name').value.trim();
+      const source = document.getElementById('w-source').value;
+      const agent  = document.getElementById('w-agent_name').value.trim();
+      const budget = document.getElementById('w-budget_gbp').value;
+      const dispatch = document.getElementById('w-dispatch').value === 'true';
+
+      if (!name)   { fieldError('err-w-client_name', 'Client name is required'); valid = false; }
+      else if (name.length < 2) { fieldError('err-w-client_name', 'Client name must be at least 2 characters'); valid = false; }
+      if (!source) { fieldError('err-w-source', 'Source is required'); valid = false; }
+      if (!agent)  { fieldError('err-w-agent_name', 'Agent name is required'); valid = false; }
+      if (budget && parseInt(budget) < 100000) { fieldError('err-w-budget_gbp', 'Budget must be at least £100,000'); valid = false; }
+      if (!valid) return;
+
+      const body = { client_name: name, source, agent_name: agent, dispatch };
+      if (budget) body.budget_gbp = parseInt(budget);
+
+      addMsg(`Generate welcome for <strong>${name}</strong> (${source})`, 'user');
+      const btn = document.querySelector('#form-welcome .send-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/bot/welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.message_draft) addMsg(data.message_draft.replace(/\n/g, '<br>'));
+        else addMsg('Error: ' + (data.detail || 'Unknown error'), 'error');
+      } catch { addMsg('Connection error.', 'error'); }
+      finally { btn.disabled = false; }
+    }
+
+    async function submitMatch() {
+      clearErrors('m-');
+      const ref = document.getElementById('m-property_ref').value.trim();
+      const max = parseInt(document.getElementById('m-max_results').value) || 5;
+      if (!ref) { fieldError('err-m-property_ref', 'Property reference is required'); return; }
+      if (max > 20) { fieldError('err-m-max_results', 'Cannot exceed 20'); return; }
+
+      addMsg(`Find applicants for <strong>${ref}</strong>`, 'user');
+      const res = await fetch('/bot/match-applicants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ property_ref: ref, max_results: max }),
+      });
+      const data = await res.json();
+      addMsg(JSON.stringify(data, null, 2).replace(/\n/g, '<br>'));
+    }
+
+    async function sendFree() {
+      const inp = document.getElementById('freeText');
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      addMsg(text, 'user');
+      const res = await fetch('/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        addMsg(`Classified as: <strong>${data.intent}</strong>`);
+      } else {
+        let html = `<strong>I can't help with that.</strong> I can assist with:<ul class="capabilities">`;
+        (data.capabilities || []).forEach(c => { html += `<li>${c}</li>`; });
+        html += '</ul>';
+        addMsg(html, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

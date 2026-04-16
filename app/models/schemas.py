@@ -1,0 +1,183 @@
+"""
+Pydantic v2 schemas for all 6 bot functions.
+TS Section 5.1–5.6 — validation layer catches bad input before AI or CRM.
+"""
+
+from __future__ import annotations
+
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+
+# ---------------------------------------------------------------------------
+# Shared response models
+# ---------------------------------------------------------------------------
+
+class ErrorResponse(BaseModel):
+    status: Literal["error"] = "error"
+    error_code: str
+    message: str
+    capabilities: Optional[List[str]] = None
+
+
+class ClassifyResponse(BaseModel):
+    status: Literal["ok", "error"]
+    intent: Optional[str] = None
+    error_code: Optional[str] = None
+    message: Optional[str] = None
+    capabilities: Optional[List[str]] = None
+
+
+# ---------------------------------------------------------------------------
+# fn_generate_welcome  (TS Section 5.1)
+# ---------------------------------------------------------------------------
+
+class WelcomeRequest(BaseModel):
+    client_name: str
+    source: Literal["Rightmove", "Zoopla", "Referral", "Direct", "Other"]
+    agent_name: str
+    dispatch: bool
+    budget_gbp: Optional[int] = None
+    notes: Optional[str] = None
+
+    @field_validator("client_name")
+    @classmethod
+    def validate_client_name(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Client name is required")
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Client name must be at least 2 characters")
+        return v
+
+    @field_validator("agent_name")
+    @classmethod
+    def validate_agent_name(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Agent name is required")
+        return v.strip()
+
+    @field_validator("dispatch", mode="before")
+    @classmethod
+    def validate_dispatch(cls, v: object) -> bool:
+        if v is None:
+            raise ValueError("dispatch field must be true or false")
+        return v  # type: ignore[return-value]
+
+    @field_validator("budget_gbp")
+    @classmethod
+    def validate_budget(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 100_000:
+            raise ValueError("Budget must be at least £100,000")
+        return v
+
+
+class WelcomeResponse(BaseModel):
+    status: str
+    message_draft: Optional[str] = None
+    hubspot_contact_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# fn_register_applicant  (TS Section 5.2)
+# ---------------------------------------------------------------------------
+
+class RegisterApplicantRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    phone: str
+    budget: int = Field(ge=100_000)
+    bedrooms_min: int = Field(ge=1)
+    property_types: List[Literal["house", "flat", "maisonette"]]
+    financing: Literal["mortgage", "cash", "help_to_buy", "shared_ownership"]
+    preferred_channel: Literal["email", "phone", "whatsapp"]
+    source: str
+    bedrooms_max: Optional[int] = None
+    must_have: Optional[str] = None
+    timeline_weeks: Optional[int] = None
+
+
+class RegisterApplicantResponse(BaseModel):
+    status: str
+    applicant_id: Optional[str] = None
+    hubspot_contact_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# fn_match_applicants  (TS Section 5.3)
+# ---------------------------------------------------------------------------
+
+class MatchApplicantsRequest(BaseModel):
+    property_ref: str
+    max_results: int = Field(default=5, ge=1, le=20)
+
+    @field_validator("property_ref")
+    @classmethod
+    def validate_property_ref(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Property reference is required")
+        return v.strip()
+
+
+class MatchApplicantsResponse(BaseModel):
+    status: str
+    matches: Optional[List[dict]] = None
+    count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# fn_valuation_brief  (TS Section 5.4)
+# ---------------------------------------------------------------------------
+
+class ValuationBriefRequest(BaseModel):
+    address: str
+    postcode: str
+    property_type: Literal["house", "flat", "maisonette"]
+    bedrooms: int = Field(ge=0)
+    condition: Optional[Literal["excellent", "good", "fair", "needs_work"]] = None
+    sqft: Optional[int] = None
+
+
+class ValuationBriefResponse(BaseModel):
+    status: str
+    briefing: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# fn_draft_outreach  (TS Section 5.5)
+# ---------------------------------------------------------------------------
+
+class DraftOutreachRequest(BaseModel):
+    recipient_name: str
+    recipient_type: Literal["client", "applicant"]
+    channel: Literal["email", "letter", "whatsapp"]
+    agent_name: str
+    context_notes: Optional[str] = None
+
+
+class DraftOutreachResponse(BaseModel):
+    status: str
+    draft: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# fn_kyc_status  (TS Section 5.6)
+# ---------------------------------------------------------------------------
+
+class KYCStatusRequest(BaseModel):
+    name_or_id: str
+    type: Literal["client", "applicant"]
+
+    @field_validator("name_or_id")
+    @classmethod
+    def validate_name_or_id(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("name_or_id is required")
+        return v.strip()
+
+
+class KYCStatusResponse(BaseModel):
+    status: str
+    kyc_complete: Optional[bool] = None
+    outstanding_items: Optional[List[str]] = None

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Team AI — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+    }
+    .logo { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin-bottom: 0.25rem; }
+    .tagline { font-size: 0.85rem; color: #6b7280; margin-bottom: 2rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 500; color: #374151; margin-bottom: 0.4rem; }
+    input {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 0.25rem;
+    }
+    input:focus { border-color: #4f46e5; }
+    input.error { border-color: #ef4444; }
+    .field-error { font-size: 0.78rem; color: #ef4444; min-height: 1.1rem; margin-bottom: 0.75rem; }
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.2s;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .global-error {
+      font-size: 0.85rem;
+      color: #ef4444;
+      text-align: center;
+      margin-top: 0.75rem;
+      min-height: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">My Team AI</div>
+    <div class="tagline">Property Management Assistant — Curtis Sloane</div>
+
+    <form id="loginForm" novalidate>
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" placeholder="agent@curtissloane.com" autocomplete="username" />
+      <div class="field-error" id="emailError"></div>
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" />
+      <div class="field-error" id="passwordError"></div>
+
+      <button type="submit" id="submitBtn">Sign in</button>
+      <div class="global-error" id="globalError"></div>
+    </form>
+  </div>
+
+  <script>
+    const form     = document.getElementById('loginForm');
+    const emailEl  = document.getElementById('email');
+    const passEl   = document.getElementById('password');
+    const emailErr = document.getElementById('emailError');
+    const passErr  = document.getElementById('passwordError');
+    const globalErr = document.getElementById('globalError');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function clearErrors() {
+      emailErr.textContent = '';
+      passErr.textContent  = '';
+      globalErr.textContent = '';
+      emailEl.classList.remove('error');
+      passEl.classList.remove('error');
+    }
+
+    function validateField(el, errEl, label) {
+      if (!el.value.trim()) {
+        errEl.textContent = `${label} is required`;
+        el.classList.add('error');
+        return false;
+      }
+      errEl.textContent = '';
+      el.classList.remove('error');
+      return true;
+    }
+
+    // Blur validation (TS Section 6.2)
+    emailEl.addEventListener('blur', () => validateField(emailEl, emailErr, 'Email'));
+    passEl.addEventListener('blur',  () => validateField(passEl, passErr, 'Password'));
+
+    emailEl.addEventListener('input', () => {
+      if (emailErr.textContent) validateField(emailEl, emailErr, 'Email');
+    });
+    passEl.addEventListener('input', () => {
+      if (passErr.textContent) validateField(passEl, passErr, 'Password');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const emailOk = validateField(emailEl, emailErr, 'Email');
+      const passOk  = validateField(passEl, passErr, 'Password');
+      if (!emailOk || !passOk) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in…';
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailEl.value.trim(), password: passEl.value }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('role', data.role);
+          window.location.href = '/chat';
+        } else {
+          globalErr.textContent = 'Invalid email or password.';
+        }
+      } catch {
+        globalErr.textContent = 'Unable to connect. Please try again.';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>
