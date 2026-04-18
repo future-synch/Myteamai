@@ -2,6 +2,7 @@ services:
   - type: web
     name: myteamai
     runtime: python
+    pythonVersion: "3.11.9"
     plan: free
     region: frankfurt
     buildCommand: pip install -r requirements.txt
