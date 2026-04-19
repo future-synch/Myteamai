@@ -6,7 +6,9 @@ Hosting: Render.com Frankfurt
 
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,8 +34,28 @@ from app.functions.bot_functions import (
     fn_draft_outreach,
     fn_kyc_status,
 )
+from app.services import hubspot_service
 
-app = FastAPI(title="My Team AI", version="1.1.0")
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup — bootstrap HubSpot custom properties if token is present
+    if os.getenv("HUBSPOT_API_KEY"):
+        try:
+            result = await hubspot_service.ensure_custom_properties()
+            log.info("HubSpot properties bootstrap: %s", result)
+        except Exception as exc:
+            log.warning("HubSpot bootstrap skipped: %s", exc)
+    else:
+        log.warning("HUBSPOT_API_KEY not set — skipping property bootstrap")
+    yield
+    # Shutdown — nothing to clean up
+
+
+app = FastAPI(title="My Team AI", version="1.1.0", lifespan=lifespan)
 
 # CORS
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")

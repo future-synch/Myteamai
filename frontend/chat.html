@@ -53,25 +53,40 @@
     .msg.bot { background: #fff; border: 1px solid #e5e7eb; align-self: flex-start; }
     .msg.user { background: #4f46e5; color: #fff; align-self: flex-end; }
     .msg.error { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; align-self: flex-start; }
+    .msg.success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; align-self: flex-start; }
     .capabilities { margin-top: 0.5rem; }
     .capabilities li { font-size: 0.82rem; margin-left: 1.25rem; margin-top: 0.2rem; }
+    .contact-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .contact-card strong { color: #1a1a2e; }
     .form-panel {
       background: #fff;
       border-top: 1px solid #e5e7eb;
       padding: 1rem 1.5rem;
     }
     .form-panel.hidden { display: none; }
-    .form-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .form-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
     .form-group { flex: 1; min-width: 160px; }
     .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: #374151; margin-bottom: 0.3rem; }
-    .form-group input, .form-group select {
+    .form-group input, .form-group select, .form-group textarea {
       width: 100%; padding: 0.45rem 0.7rem; border: 1.5px solid #d1d5db;
       border-radius: 7px; font-size: 0.88rem; outline: none;
+      font-family: inherit;
     }
-    .form-group input:focus, .form-group select:focus { border-color: #4f46e5; }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #4f46e5; }
     .form-group input.error, .form-group select.error { border-color: #ef4444; }
     .field-error { font-size: 0.75rem; color: #ef4444; min-height: 1rem; }
-    .form-actions { display: flex; justify-content: flex-end; }
+    .checkbox-group { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .checkbox-group label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; font-weight: normal; }
+    .checkbox-group input { width: auto; }
+    .form-actions { display: flex; justify-content: flex-end; padding-top: 0.5rem; }
     .send-btn {
       padding: 0.5rem 1.5rem;
       background: #4f46e5; color: #fff;
@@ -149,6 +164,94 @@
         </div>
       </div>
 
+      <!-- Register Applicant Form -->
+      <div class="form-panel hidden" id="form-register">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" id="r-full_name" placeholder="e.g. Tom Baker" />
+            <div class="field-error" id="err-r-full_name"></div>
+          </div>
+          <div class="form-group">
+            <label>Email *</label>
+            <input type="email" id="r-email" placeholder="tom@example.com" />
+            <div class="field-error" id="err-r-email"></div>
+          </div>
+          <div class="form-group">
+            <label>Phone *</label>
+            <input type="text" id="r-phone" placeholder="+44 7700 900123" />
+            <div class="field-error" id="err-r-phone"></div>
+          </div>
+          <div class="form-group">
+            <label>Budget (£) *</label>
+            <input type="number" id="r-budget" placeholder="e.g. 2500000" />
+            <div class="field-error" id="err-r-budget"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Bedrooms Min *</label>
+            <input type="number" id="r-bedrooms_min" placeholder="e.g. 3" value="2" />
+            <div class="field-error" id="err-r-bedrooms_min"></div>
+          </div>
+          <div class="form-group">
+            <label>Bedrooms Max</label>
+            <input type="number" id="r-bedrooms_max" placeholder="Optional" />
+          </div>
+          <div class="form-group">
+            <label>Financing *</label>
+            <select id="r-financing">
+              <option value="">Select…</option>
+              <option value="cash">Cash</option>
+              <option value="mortgage_aip">Mortgage (AIP)</option>
+              <option value="mortgage_no_aip">Mortgage (no AIP)</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <div class="field-error" id="err-r-financing"></div>
+          </div>
+          <div class="form-group">
+            <label>Preferred Channel *</label>
+            <select id="r-preferred_channel">
+              <option value="">Select…</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+            <div class="field-error" id="err-r-preferred_channel"></div>
+          </div>
+          <div class="form-group">
+            <label>Source *</label>
+            <input type="text" id="r-source" placeholder="Rightmove, Referral, etc." />
+            <div class="field-error" id="err-r-source"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label>Property Types * (select one or more)</label>
+            <div class="checkbox-group" id="r-property_types">
+              <label><input type="checkbox" value="house"> House</label>
+              <label><input type="checkbox" value="flat"> Flat</label>
+              <label><input type="checkbox" value="maisonette"> Maisonette</label>
+              <label><input type="checkbox" value="any"> Any</label>
+            </div>
+            <div class="field-error" id="err-r-property_types"></div>
+          </div>
+          <div class="form-group">
+            <label>Timeline (weeks)</label>
+            <input type="number" id="r-timeline_weeks" placeholder="Optional" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label>Must-Have</label>
+            <textarea id="r-must_have" placeholder="Optional — e.g. garden, parking, near tube"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="send-btn" onclick="submitRegister()">Register Applicant</button>
+        </div>
+      </div>
+
       <!-- Match Applicants Form -->
       <div class="form-panel hidden" id="form-match">
         <div class="form-row">
@@ -165,6 +268,27 @@
         </div>
         <div class="form-actions">
           <button class="send-btn" onclick="submitMatch()">Find Matches</button>
+        </div>
+      </div>
+
+      <!-- KYC Status Form -->
+      <div class="form-panel hidden" id="form-kyc">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Name or Email *</label>
+            <input type="text" id="k-name_or_id" placeholder="e.g. Tom Baker or tom@example.com" />
+            <div class="field-error" id="err-k-name_or_id"></div>
+          </div>
+          <div class="form-group">
+            <label>Type *</label>
+            <select id="k-type">
+              <option value="applicant">Applicant</option>
+              <option value="client">Client</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="send-btn" onclick="submitKYC()">Check KYC Status</button>
         </div>
       </div>
 
@@ -202,7 +326,7 @@
 
     function fieldError(id, msg) {
       const el = document.getElementById(id);
-      if (el) { el.textContent = msg; }
+      if (el) el.textContent = msg;
       const inp = document.getElementById(id.replace('err-', ''));
       if (inp) inp.classList.toggle('error', !!msg);
     }
@@ -215,19 +339,17 @@
       });
     }
 
-    // Blur validation
-    ['w-client_name','w-agent_name','w-source','m-property_ref'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('blur', () => {
-        if (!el.value.trim()) fieldError('err-' + id, el.tagName === 'SELECT' ? 'Required' : el.previousElementSibling.textContent.replace(' *','') + ' is required');
-        else fieldError('err-' + id, '');
+    async function postJSON(path, body) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body),
       });
-      el.addEventListener('input', () => {
-        if (document.getElementById('err-' + id).textContent) fieldError('err-' + id, '');
-      });
-    });
+      const data = await res.json().catch(() => ({ detail: 'Invalid JSON response' }));
+      return { ok: res.ok, status: res.status, data };
+    }
 
+    // ----- Welcome Client -----
     async function submitWelcome() {
       clearErrors('w-');
       let valid = true;
@@ -237,10 +359,10 @@
       const budget = document.getElementById('w-budget_gbp').value;
       const dispatch = document.getElementById('w-dispatch').value === 'true';
 
-      if (!name)   { fieldError('err-w-client_name', 'Client name is required'); valid = false; }
+      if (!name) { fieldError('err-w-client_name', 'Client name is required'); valid = false; }
       else if (name.length < 2) { fieldError('err-w-client_name', 'Client name must be at least 2 characters'); valid = false; }
       if (!source) { fieldError('err-w-source', 'Source is required'); valid = false; }
-      if (!agent)  { fieldError('err-w-agent_name', 'Agent name is required'); valid = false; }
+      if (!agent) { fieldError('err-w-agent_name', 'Agent name is required'); valid = false; }
       if (budget && parseInt(budget) < 100000) { fieldError('err-w-budget_gbp', 'Budget must be at least £100,000'); valid = false; }
       if (!valid) return;
 
@@ -250,19 +372,64 @@
       addMsg(`Generate welcome for <strong>${name}</strong> (${source})`, 'user');
       const btn = document.querySelector('#form-welcome .send-btn');
       btn.disabled = true;
-      try {
-        const res = await fetch('/bot/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (data.message_draft) addMsg(data.message_draft.replace(/\n/g, '<br>'));
-        else addMsg('Error: ' + (data.detail || 'Unknown error'), 'error');
-      } catch { addMsg('Connection error.', 'error'); }
-      finally { btn.disabled = false; }
+      const { ok, data } = await postJSON('/bot/welcome', body);
+      if (ok && data.message_draft) addMsg(data.message_draft.replace(/\n/g, '<br>'));
+      else addMsg('Error: ' + (data.detail || data.status || 'Unknown'), 'error');
+      btn.disabled = false;
     }
 
+    // ----- Register Applicant -----
+    async function submitRegister() {
+      clearErrors('r-');
+      let valid = true;
+      const full_name = document.getElementById('r-full_name').value.trim();
+      const email = document.getElementById('r-email').value.trim();
+      const phone = document.getElementById('r-phone').value.trim();
+      const budget = parseInt(document.getElementById('r-budget').value);
+      const bedrooms_min = parseInt(document.getElementById('r-bedrooms_min').value);
+      const bedrooms_max_raw = document.getElementById('r-bedrooms_max').value;
+      const financing = document.getElementById('r-financing').value;
+      const preferred_channel = document.getElementById('r-preferred_channel').value;
+      const source = document.getElementById('r-source').value.trim();
+      const timeline_raw = document.getElementById('r-timeline_weeks').value;
+      const must_have = document.getElementById('r-must_have').value.trim();
+      const property_types = Array.from(
+        document.querySelectorAll('#r-property_types input:checked')
+      ).map(x => x.value);
+
+      if (!full_name) { fieldError('err-r-full_name', 'Full name is required'); valid = false; }
+      if (!email) { fieldError('err-r-email', 'Email is required'); valid = false; }
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { fieldError('err-r-email', 'Invalid email'); valid = false; }
+      if (!phone) { fieldError('err-r-phone', 'Phone is required'); valid = false; }
+      if (!budget) { fieldError('err-r-budget', 'Budget is required'); valid = false; }
+      if (!bedrooms_min) { fieldError('err-r-bedrooms_min', 'Bedrooms min is required'); valid = false; }
+      if (!financing) { fieldError('err-r-financing', 'Financing is required'); valid = false; }
+      if (!preferred_channel) { fieldError('err-r-preferred_channel', 'Channel is required'); valid = false; }
+      if (!source) { fieldError('err-r-source', 'Source is required'); valid = false; }
+      if (property_types.length === 0) { fieldError('err-r-property_types', 'Pick at least one'); valid = false; }
+      if (!valid) return;
+
+      const body = {
+        full_name, email, phone, budget, bedrooms_min,
+        property_types, financing, preferred_channel, source,
+      };
+      if (bedrooms_max_raw) body.bedrooms_max = parseInt(bedrooms_max_raw);
+      if (timeline_raw)     body.timeline_weeks = parseInt(timeline_raw);
+      if (must_have)        body.must_have = must_have;
+
+      addMsg(`Register applicant <strong>${full_name}</strong> (${email})`, 'user');
+      const btn = document.querySelector('#form-register .send-btn');
+      btn.disabled = true;
+      const { ok, data } = await postJSON('/bot/register-applicant', body);
+      if (ok && data.status === 'ok' && data.hubspot_contact_id) {
+        addMsg(`✓ Contact created in HubSpot — ID <strong>${data.hubspot_contact_id}</strong>`, 'success');
+      } else {
+        addMsg('Failed to create contact: ' + (data.detail || data.status || 'Unknown'), 'error');
+      }
+      btn.disabled = false;
+    }
+
+    // ----- Match Applicants -----
     async function submitMatch() {
       clearErrors('m-');
       const ref = document.getElementById('m-property_ref').value.trim();
@@ -271,36 +438,83 @@
       if (max > 20) { fieldError('err-m-max_results', 'Cannot exceed 20'); return; }
 
       addMsg(`Find applicants for <strong>${ref}</strong>`, 'user');
-      const res = await fetch('/bot/match-applicants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ property_ref: ref, max_results: max }),
-      });
-      const data = await res.json();
-      addMsg(JSON.stringify(data, null, 2).replace(/\n/g, '<br>'));
+      const { ok, data } = await postJSON('/bot/match-applicants', { property_ref: ref, max_results: max });
+      if (ok && data.status === 'ok') {
+        if (data.count === 0) {
+          addMsg('No applicants found in HubSpot yet. Register one first via the "Register Applicant" form.');
+          return;
+        }
+        let html = `<strong>Found ${data.count} applicant${data.count === 1 ? '' : 's'}:</strong>`;
+        (data.matches || []).forEach(m => {
+          const p = m.properties || {};
+          html += `
+            <div class="contact-card">
+              <strong>${p.firstname || ''} ${p.lastname || ''}</strong><br>
+              ${p.email || '—'} · ${p.phone || '—'}<br>
+              Budget: £${(p.applicant_budget_gbp || '—')} ·
+              Beds: ${p.applicant_bedrooms_min || '—'}+ ·
+              ${p.applicant_property_types || '—'}
+            </div>`;
+        });
+        addMsg(html);
+      } else {
+        addMsg('Error: ' + (data.detail || data.status || 'Unknown'), 'error');
+      }
     }
 
+    // ----- KYC Status -----
+    async function submitKYC() {
+      clearErrors('k-');
+      const name_or_id = document.getElementById('k-name_or_id').value.trim();
+      const type = document.getElementById('k-type').value;
+      if (!name_or_id) { fieldError('err-k-name_or_id', 'Name or email is required'); return; }
+
+      addMsg(`Check KYC for <strong>${name_or_id}</strong>`, 'user');
+      const { ok, data } = await postJSON('/bot/kyc-status', { name_or_id, type });
+      if (ok && data.status === 'ok') {
+        const complete = data.kyc_complete ? '✓ Complete' : '✗ Incomplete';
+        const items = (data.outstanding_items || []).length
+          ? `<br>Outstanding: ${data.outstanding_items.join(', ')}`
+          : '';
+        addMsg(`<strong>KYC: ${complete}</strong>${items}`, data.kyc_complete ? 'success' : 'error');
+      } else if (data.status === 'not_found') {
+        addMsg(`No contact found matching "${name_or_id}".`, 'error');
+      } else {
+        addMsg('Error: ' + (data.detail || data.status || 'Unknown'), 'error');
+      }
+    }
+
+    // ----- Free-text classifier -----
     async function sendFree() {
       const inp = document.getElementById('freeText');
       const text = inp.value.trim();
       if (!text) return;
       inp.value = '';
       addMsg(text, 'user');
-      const res = await fetch('/classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
+      const { ok, data } = await postJSON('/classify', { text });
+      if (ok && data.status === 'ok') {
         addMsg(`Classified as: <strong>${data.intent}</strong>`);
       } else {
-        let html = `<strong>I can't help with that.</strong> I can assist with:<ul class="capabilities">`;
+        let html = `<strong>${data.message || "I can't help with that."}</strong><ul class="capabilities">`;
         (data.capabilities || []).forEach(c => { html += `<li>${c}</li>`; });
         html += '</ul>';
         addMsg(html, 'error');
       }
     }
+
+    // Blur validation for required fields
+    ['w-client_name','w-agent_name','w-source','m-property_ref',
+     'r-full_name','r-email','r-phone','r-budget','r-bedrooms_min',
+     'r-financing','r-preferred_channel','r-source','k-name_or_id'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('blur', () => {
+        if (!el.value.trim()) fieldError('err-' + id, 'Required');
+      });
+      el.addEventListener('input', () => {
+        if (document.getElementById('err-' + id)?.textContent) fieldError('err-' + id, '');
+      });
+    });
   </script>
 </body>
 </html>
