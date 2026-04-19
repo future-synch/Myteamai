@@ -103,6 +103,19 @@ class WelcomeResponse(BaseModel):
     hubspot_contact_id: Optional[str] = None
 
 
+class WelcomeFromTextRequest(BaseModel):
+    """Free-text entry point — extract fields with Claude then generate."""
+    text: str
+    agent_name: Optional[str] = None
+
+
+class WelcomeFromTextResponse(BaseModel):
+    status: str
+    intent: str = "WELCOME_CLIENT"
+    extracted: Optional[dict] = None
+    message_draft: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # fn_register_applicant  (TS Section 5.2)
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ from app.classifier import classify, CAPABILITIES
 from app.models.schemas import (
     ClassifyResponse,
     WelcomeRequest, WelcomeResponse,
+    WelcomeFromTextRequest, WelcomeFromTextResponse,
     RegisterApplicantRequest, RegisterApplicantResponse,
     MatchApplicantsRequest, MatchApplicantsResponse,
     ValuationBriefRequest, ValuationBriefResponse,
@@ -28,6 +29,7 @@ from app.models.schemas import (
 )
 from app.functions.bot_functions import (
     fn_generate_welcome,
+    fn_generate_welcome_from_text,
     fn_register_applicant,
     fn_match_applicants,
     fn_valuation_brief,
@@ -114,6 +116,19 @@ def classify_endpoint(body: dict, _: dict = Depends(require_auth)):
 @app.post("/bot/welcome", response_model=WelcomeResponse)
 async def welcome(req: WelcomeRequest, _: dict = Depends(require_auth)):
     return await fn_generate_welcome(req)
+
+
+@app.post("/bot/welcome-from-text", response_model=WelcomeFromTextResponse)
+async def welcome_from_text(
+    req: WelcomeFromTextRequest,
+    auth: dict = Depends(require_auth),
+):
+    # Use the authenticated user's email local-part as agent_name if not provided
+    agent_name = req.agent_name
+    if not agent_name:
+        sub = auth.get("sub", "")  # e.g. "agent@curtissloane.com"
+        agent_name = sub.split("@")[0].capitalize() or "James"
+    return await fn_generate_welcome_from_text(req.text, agent_name=agent_name)
 
 
 @app.post("/bot/register-applicant", response_model=RegisterApplicantResponse)

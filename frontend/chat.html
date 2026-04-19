@@ -484,7 +484,7 @@
       }
     }
 
-    // ----- Free-text classifier -----
+    // ----- Free-text classifier + auto-dispatch -----
     async function sendFree() {
       const inp = document.getElementById('freeText');
       const text = inp.value.trim();
@@ -492,13 +492,36 @@
       inp.value = '';
       addMsg(text, 'user');
       const { ok, data } = await postJSON('/classify', { text });
-      if (ok && data.status === 'ok') {
-        addMsg(`Classified as: <strong>${data.intent}</strong>`);
-      } else {
+
+      if (!ok || data.status !== 'ok') {
+        // UNKNOWN_INTENT → show capabilities
         let html = `<strong>${data.message || "I can't help with that."}</strong><ul class="capabilities">`;
         (data.capabilities || []).forEach(c => { html += `<li>${c}</li>`; });
         html += '</ul>';
         addMsg(html, 'error');
+        return;
+      }
+
+      // Known intent — auto-dispatch WELCOME_CLIENT, otherwise guide to the form
+      if (data.intent === 'WELCOME_CLIENT') {
+        addMsg('<em>Generating welcome draft…</em>');
+        const result = await postJSON('/bot/welcome-from-text', { text });
+        const d = result.data;
+        if (result.ok && d.status === 'ok' && d.message_draft) {
+          let html = '';
+          if (d.extracted) {
+            html += `<small><strong>Extracted:</strong> Client = ${d.extracted.client_name || '—'} · Source = ${d.extracted.source || '—'}`;
+            if (d.extracted.budget_gbp) html += ` · Budget = £${Number(d.extracted.budget_gbp).toLocaleString()}`;
+            if (d.extracted.timeline) html += ` · Timeline = ${d.extracted.timeline}`;
+            html += '</small><br><br>';
+          }
+          html += d.message_draft.replace(/\n/g, '<br>');
+          addMsg(html, 'success');
+        } else {
+          addMsg('Draft generation failed: ' + (d.message_draft || d.status || 'Unknown'), 'error');
+        }
+      } else {
+        addMsg(`Classified as <strong>${data.intent}</strong>. Use the sidebar form to complete this request.`);
       }
     }
 
