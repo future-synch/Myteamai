@@ -23,7 +23,7 @@ Notes on schema fidelity vs Curtis Sloane source:
   * Multi-checkbox option *internal* names in source are random IDs
     (e.g. "eVBDCMcqw9xhXNH8IfA5U"). Per handover, we use readable
     snake_case values here — labels remain identical to source.
-  * Property groups: contactinformation and contactactivity are HubSpot
+  * Property groups: contactinformation and contactinformation are HubSpot
     built-ins. Curtis Sloane's MINIMUM SIZE SQFT lives in a custom group
     "minimum_size"; we collapse that into contactinformation so this script
     does not depend on creating a group object first.
@@ -84,13 +84,13 @@ PROPERTIES: List[Dict[str, Any]] = [
         ],
     },
 
-    # 3. CONTACT STATUS — note: Curtis Sloane group "contactactivity" (built-in)
+    # 3. CONTACT STATUS — note: Curtis Sloane group "contactinformation" (built-in)
     {
         "name":      "contact_status",
         "label":     "Contact Status",
         "type":      "enumeration",
         "fieldType": "select",
-        "groupName": "contactactivity",
+        "groupName": "contactinformation",
         "options": [
             {"label": "Active",        "value": "active",         "displayOrder": 0},
             {"label": "Inactive",      "value": "inactive",       "displayOrder": 1},
