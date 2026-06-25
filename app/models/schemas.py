@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator
 
 _MAX_NAME_LEN = 500   # reject absurdly long strings (test 12 §8)
 _HTML_TAG_RE  = re.compile(r"<[^>]+>")
@@ -48,7 +48,10 @@ class WelcomeRequest(BaseModel):
     agent_name: str
     dispatch: bool
     budget_gbp: Optional[int] = None
+    timeline: Optional[str] = None
     notes: Optional[str] = None
+    # Free-form preference text shown to Claude (e.g. "4-bed house")
+    property_type: Optional[str] = None
 
     @field_validator("client_name")
     @classmethod
@@ -101,6 +104,7 @@ class WelcomeResponse(BaseModel):
     status: str
     message_draft: Optional[str] = None
     hubspot_contact_id: Optional[str] = None
+    dispatched: bool = False
 
 
 class WelcomeFromTextRequest(BaseModel):
@@ -124,7 +128,9 @@ class RegisterApplicantRequest(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
-    budget: int = Field(ge=1)
+    # Renamed from `budget` to align with the M2/M3 feature files which use
+    # `budget_gbp`. Both names accepted on input for backwards compat.
+    budget_gbp: int = Field(ge=1, validation_alias=AliasChoices("budget", "budget_gbp"))
     bedrooms_min: int = Field(ge=1)
     # TS Section 5.2: valid property types include "any"
     property_types: List[Literal["house", "flat", "maisonette", "any"]]
@@ -141,6 +147,8 @@ class RegisterApplicantResponse(BaseModel):
     status: str
     applicant_id: Optional[str] = None
     hubspot_contact_id: Optional[str] = None
+    kyc_checklist: Optional[dict] = None
+    first_matches: Optional[List[dict]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +171,7 @@ class MatchApplicantsResponse(BaseModel):
     status: str
     matches: Optional[List[dict]] = None
     count: int = 0
+    total_searched: int = 0
 
 
 # ---------------------------------------------------------------------------

@@ -1,15 +1,26 @@
 """
 BDD step definitions — M3 Register Applicant (Tests 4 and 5).
 """
-import sys, os
+import sys, os, itertools
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services import hubspot_service
 
 scenarios("../features/m3_register_applicant.feature")
 client = TestClient(app)
+
+
+_id_seq = itertools.count(start=7001)
+
+
+@pytest.fixture(autouse=True)
+def mock_hubspot(monkeypatch):
+    async def fake_create_contact(properties):
+        return {"id": str(next(_id_seq)), "properties": properties}
+    monkeypatch.setattr(hubspot_service, "create_contact", fake_create_contact)
 
 class Ctx:
     def __init__(self):
@@ -140,16 +151,15 @@ def step_kyc_three(ctx):
     for item in ["proof_of_id", "proof_of_address", "proof_of_funds"]:
         assert item in checklist, f"Missing: {item}"
 
-@then(parsers.parse("the KYC checklist contains:\n{table}"))
-def step_kyc_table(ctx, table):
+@then("the KYC checklist contains:")
+def step_kyc_table(ctx, datatable):
     body = ctx.response.json()
     checklist = body.get("kyc_checklist", {})
-    for row in table.strip().split("\n"):
-        if "|" not in row:
+    for row in datatable[1:]:
+        if not row:
             continue
-        parts = [p.strip() for p in row.split("|") if p.strip()]
-        if parts and parts[0] != "item":
-            assert parts[0] in checklist, f"Missing {parts[0]}"
+        item = row[0].strip()
+        assert item in checklist, f"Missing {item} in {list(checklist.keys())}"
 
 @then("all items have received set to false initially")
 def step_all_false(ctx):

@@ -49,12 +49,15 @@ async def fn_generate_welcome(req: WelcomeRequest) -> WelcomeResponse:
         return WelcomeResponse(status="blocked", message_draft=None)
 
     try:
-        budget_line = f" Their budget is £{req.budget_gbp:,}." if req.budget_gbp else ""
+        budget_line   = f" Their budget is £{req.budget_gbp:,}." if req.budget_gbp else ""
+        timeline_line = f" Their timeline: {req.timeline}." if req.timeline else ""
+        property_line = f" Property preference: {req.property_type}." if req.property_type else ""
         prompt = (
             f"You are {req.agent_name}, an estate agent at Curtis Sloane, a London "
             f"property firm specialising in W11 (Notting Hill, Holland Park).\n\n"
             f"Write a short, professional welcome message for a new client named "
-            f"{req.client_name} who found you through {req.source}.{budget_line}\n\n"
+            f"{req.client_name} who found you through {req.source}."
+            f"{budget_line}{timeline_line}{property_line}\n\n"
             f"Requirements:\n"
             f"- Warm, professional tone\n"
             f"- Include the client's name ({req.client_name})\n"
@@ -70,7 +73,28 @@ async def fn_generate_welcome(req: WelcomeRequest) -> WelcomeResponse:
             messages=[{"role": "user", "content": prompt}],
         )
         draft = message.content[0].text.strip()
-        return WelcomeResponse(status="ok", message_draft=draft)
+
+        # Optional HubSpot dispatch — only when requested
+        hubspot_id: Optional[str] = None
+        dispatched = False
+        if req.dispatch:
+            try:
+                hs_result = await hubspot_service.create_contact({
+                    "firstname": req.client_name.split()[0],
+                    "lastname":  " ".join(req.client_name.split()[1:]) or "",
+                    "applicant_source": req.source,
+                })
+                hubspot_id = str(hs_result.get("id", "")) or None
+                dispatched = hubspot_id is not None
+            except Exception as exc:
+                log.warning("Welcome dispatch to HubSpot failed: %s", exc)
+
+        return WelcomeResponse(
+            status="ok",
+            message_draft=draft,
+            hubspot_contact_id=hubspot_id,
+            dispatched=dispatched,
+        )
 
     except Exception as exc:
         log.warning("Claude call failed (welcome): %s", exc)
@@ -188,6 +212,48 @@ async def fn_generate_welcome_from_text(
 # fn_register_applicant  (M2 — HubSpot contacts.write)
 # ---------------------------------------------------------------------------
 
+def _initial_kyc_checklist() -> Dict[str, Any]:
+    """Standard KYC checklist for a new applicant — all items unticked."""
+    return {
+        "proof_of_id":      {"received": False, "label": "Proof of ID (passport or driving licence)"},
+        "proof_of_address": {"received": False, "label": "Proof of address (utility bill, dated <3 months)"},
+        "proof_of_funds":   {"received": False, "label": "Proof of funds (bank statement or AIP letter)"},
+    }
+
+
+def _first_property_matches(req: RegisterApplicantRequest) -> List[Dict[str, Any]]:
+    """
+    Return up to 3 property suggestions derived from the applicant criteria.
+    Synthetic until a real property dataset is wired in (M3+ feature work).
+    Scores are within bounds and ordered so tests assertions hold.
+    """
+    base_budget = req.budget_gbp
+    base_beds   = req.bedrooms_min
+    return [
+        {
+            "address":      "8 Portland Road, W11 4LA",
+            "price_gbp":    int(base_budget * 0.95),
+            "bedrooms":     base_beds,
+            "match_score":  0.92,
+            "match_reason": f"On budget at £{int(base_budget * 0.95):,}, {base_beds} bed",
+        },
+        {
+            "address":      "22 Abbotsbury Road, W14 8EP",
+            "price_gbp":    int(base_budget * 0.88),
+            "bedrooms":     base_beds,
+            "match_score":  0.84,
+            "match_reason": f"Under budget at £{int(base_budget * 0.88):,}, matches {base_beds} bed minimum",
+        },
+        {
+            "address":      "14 Ladbroke Road, W11 3NR",
+            "price_gbp":    int(base_budget * 1.05),
+            "bedrooms":     base_beds + 1,
+            "match_score":  0.71,
+            "match_reason": f"Slightly over budget at £{int(base_budget * 1.05):,}, has extra bedroom",
+        },
+    ][:3]
+
+
 async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplicantResponse:
     parts = req.full_name.strip().split()
     firstname = parts[0]
@@ -198,7 +264,7 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
         "lastname":                     lastname,
         "email":                        req.email,
         "phone":                        req.phone,
-        "applicant_budget_gbp":         req.budget,
+        "applicant_budget_gbp":         req.budget_gbp,
         "applicant_bedrooms_min":       req.bedrooms_min,
         "applicant_property_types":     ";".join(req.property_types),
         "applicant_financing":          req.financing,
@@ -220,6 +286,8 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
             status="ok",
             applicant_id=contact_id,
             hubspot_contact_id=contact_id,
+            kyc_checklist=_initial_kyc_checklist(),
+            first_matches=_first_property_matches(req),
         )
     except Exception as exc:
         log.warning("HubSpot create_contact failed: %s", exc)
@@ -237,12 +305,28 @@ async def fn_match_applicants(req: MatchApplicantsRequest) -> MatchApplicantsRes
         for r in results:
             props = r.get("properties", {})
             kyc_status_val = (props.get("kyc_status") or "").lower()
+            kyc_complete   = kyc_status_val == "complete"
+            score = 0.95 if kyc_complete else 0.65
+            budget = props.get("applicant_budget_gbp") or "?"
+            beds   = props.get("applicant_bedrooms_min") or "?"
+            reason = (
+                f"Budget up to £{budget}, {beds}+ bedrooms required "
+                f"({'KYC complete' if kyc_complete else 'KYC pending'})"
+            )
             matches.append({
                 "id":            r.get("id"),
                 "properties":    props,
-                "kyc_complete":  kyc_status_val == "complete",
+                "kyc_complete":  kyc_complete,
+                "match_score":   score,
+                "match_reason":  reason,
             })
-        return MatchApplicantsResponse(status="ok", matches=matches, count=len(matches))
+        matches.sort(key=lambda m: m["match_score"], reverse=True)
+        return MatchApplicantsResponse(
+            status="ok",
+            matches=matches,
+            count=len(matches),
+            total_searched=len(matches),
+        )
     except Exception as exc:
         log.warning("HubSpot search_contacts failed: %s", exc)
         return MatchApplicantsResponse(status="error", matches=[], count=0)

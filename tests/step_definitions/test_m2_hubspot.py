@@ -1,15 +1,30 @@
 """
 BDD step definitions — M2 HubSpot Dispatch (Test 3).
 """
-import sys, os
+import sys, os, itertools
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services import hubspot_service
 
 scenarios("../features/m2_welcome_hubspot_dispatch.feature")
 client = TestClient(app)
+
+
+# Deterministic incrementing HubSpot contact id for dispatch assertions.
+_id_seq = itertools.count(start=5001)
+
+
+@pytest.fixture(autouse=True)
+def mock_hubspot(monkeypatch):
+    async def fake_create_contact(properties):
+        return {
+            "id": str(next(_id_seq)),
+            "properties": properties,
+        }
+    monkeypatch.setattr(hubspot_service, "create_contact", fake_create_contact)
 
 class Ctx:
     def __init__(self):
