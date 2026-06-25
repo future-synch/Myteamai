@@ -7,14 +7,71 @@ import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services import hubspot_service
 
 scenarios("../features/m3_match_applicants.feature")
 client = TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# Mock HubSpot for this file only.
+# Returns a deterministic mix of KYC-complete and KYC-incomplete applicants
+# so Test 7's "applicant has kyc_complete set to false" assertion can pass
+# without a live HubSpot key.
+# ---------------------------------------------------------------------------
+
+_SEEDED_APPLICANTS = [
+    {
+        "id": "101",
+        "properties": {
+            "firstname": "Tom", "lastname": "Baker",
+            "email": "tom.baker@example.com",
+            "applicant_source": "Referral",
+            "applicant_budget_gbp": "2500000",
+            "applicant_bedrooms_min": "4",
+            "kyc_status": "complete",
+        },
+    },
+    {
+        "id": "102",
+        "properties": {
+            "firstname": "Sarah", "lastname": "Chen",
+            "email": "sarah.chen@example.com",
+            "applicant_source": "Zoopla",
+            "applicant_budget_gbp": "2000000",
+            "applicant_bedrooms_min": "3",
+            "kyc_status": "outstanding",
+            "kyc_documents_outstanding": "proof_of_funds;proof_of_address",
+        },
+    },
+    {
+        "id": "103",
+        "properties": {
+            "firstname": "Michael", "lastname": "Brown",
+            "email": "michael.brown@example.com",
+            "applicant_source": "Rightmove",
+            "applicant_budget_gbp": "3000000",
+            "applicant_bedrooms_min": "5",
+            "kyc_status": "complete",
+        },
+    },
+]
+
+
+@pytest.fixture(autouse=True)
+def mock_hubspot(monkeypatch):
+    async def fake_list(*args, **kwargs):
+        limit = kwargs.get("limit", 10)
+        return _SEEDED_APPLICANTS[:limit]
+    monkeypatch.setattr(hubspot_service, "list_applicant_contacts", fake_list)
+
 
 class Ctx:
     def __init__(self):
         self.response = None
         self.headers = {}
+        self.seeded_properties = []
+        self.expect_kyc_incomplete = False
 
 @pytest.fixture
 def ctx():

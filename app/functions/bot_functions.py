@@ -31,12 +31,12 @@ MODEL_EXTRACT  = "claude-haiku-4-5-20251001"
 
 
 def _anthropic_client():
-    """Return an anthropic.Anthropic client, or None if no API key."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-    import anthropic
-    return anthropic.Anthropic(api_key=api_key)
+    """
+    Return a Claude client honouring ANTHROPIC_MODE (real / mock / record).
+    Returns None only when mode='real' and ANTHROPIC_API_KEY is unset.
+    """
+    from app.clients.claude_client import get_client
+    return get_client()
 
 
 # ---------------------------------------------------------------------------
@@ -233,10 +233,15 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
 async def fn_match_applicants(req: MatchApplicantsRequest) -> MatchApplicantsResponse:
     try:
         results = await hubspot_service.list_applicant_contacts(limit=req.max_results)
-        matches = [
-            {"id": r.get("id"), "properties": r.get("properties", {})}
-            for r in results
-        ]
+        matches = []
+        for r in results:
+            props = r.get("properties", {})
+            kyc_status_val = (props.get("kyc_status") or "").lower()
+            matches.append({
+                "id":            r.get("id"),
+                "properties":    props,
+                "kyc_complete":  kyc_status_val == "complete",
+            })
         return MatchApplicantsResponse(status="ok", matches=matches, count=len(matches))
     except Exception as exc:
         log.warning("HubSpot search_contacts failed: %s", exc)
