@@ -133,6 +133,25 @@ M5  Live client   Switch HubSpot key to Curtis Sloane account
 
 ---
 
+## ACCEPTANCE TEST RUNBOOKS
+
+Manual acceptance tests for each milestone live in `docs/`. Every milestone has its
+own runbook the tester (Olesya) fills in by hand. Three-party verification is required:
+Tester runs it, Observer (Manthan) watches without assisting, Reviewer (John) signs off.
+
+  docs/ACCEPTANCE_TEST_TEMPLATE.md   blank template — copy + rename per milestone
+  ACCEPTANCE_TESTS_M1.md             M1 (Tests 11+12) — passed 17 April 2026
+  docs/M2_ACCEPTANCE_RUNBOOK.md      M2 (Tests 1-3) — populated, ready to run
+  docs/M3_ACCEPTANCE_RUNBOOK.md      M3 (Tests 4, 6-10) — shell only, John to populate
+
+Rules per TS Section 10.1:
+- Tester runs the tests themselves. Observer does not type, click, or coach.
+- Minimum 3 varied inputs per test. 9 of 10 must pass.
+- Use data the observer has not seen in advance.
+- Every runbook ends with a three-party countersign before payment is released.
+
+---
+
 ## THREE OPEN GAPS (not M1 blockers)
 
 Gap 1: "Hello" should return warm message not cold error card
