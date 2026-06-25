@@ -355,10 +355,14 @@ async def fn_kyc_status(req: KYCStatusRequest) -> KYCStatusResponse:
     try:
         contact = await hubspot_service.find_contact_by_name_or_email(req.name_or_id)
         if contact is None:
+            # Distinct from a HubSpot exception: HubSpot answered, just had nothing.
+            # Gherkin (m3_kyc_status.feature) expects status="error" + a message
+            # containing "not found" for this case.
             return KYCStatusResponse(
-                status="not_found",
+                status="error",
                 kyc_complete=None,
                 outstanding_items=None,
+                message=f"Contact not found for '{req.name_or_id}'",
             )
 
         props = contact.get("properties", {})
@@ -376,4 +380,9 @@ async def fn_kyc_status(req: KYCStatusRequest) -> KYCStatusResponse:
         )
     except Exception as exc:
         log.warning("HubSpot KYC lookup failed: %s", exc)
-        return KYCStatusResponse(status="error", kyc_complete=None, outstanding_items=None)
+        return KYCStatusResponse(
+            status="error",
+            kyc_complete=None,
+            outstanding_items=None,
+            message=f"HubSpot lookup failed: {exc}",
+        )

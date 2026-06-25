@@ -226,3 +226,4 @@ class KYCStatusResponse(BaseModel):
     status: str
     kyc_complete: Optional[bool] = None
     outstanding_items: Optional[List[str]] = None
+    message: Optional[str] = None
