@@ -33,8 +33,9 @@ def step_auth(ctx):
 def step_claude(ctx):
     pass
 
-@when(parsers.parse("the agent sends the request:\n{text}"))
-def step_send_text(ctx, text):
+@when("the agent sends the request:")
+def step_send_text(ctx, docstring):
+    text = docstring
     start = time.time()
     ctx.response = client.post(
         "/bot/welcome",
@@ -59,29 +60,28 @@ def _extract_source(text):
             return s
     return "Direct"
 
-@when(parsers.parse("the agent submits a welcome request with:\n{table}"))
-def step_submit_form(ctx, table):
-    data = _parse_table(table)
+@when("the agent submits a welcome request with:")
+def step_submit_form(ctx, datatable):
+    data = _parse_datatable(datatable)
     start = time.time()
     ctx.response = client.post("/bot/welcome", json=data, headers=ctx.headers)
     ctx.elapsed = time.time() - start
 
-def _parse_table(table):
+def _parse_datatable(rows):
+    """pytest-bdd 8 passes a list-of-lists. First row is headers, rest are data."""
     data = {}
-    for row in table.strip().split("\n"):
-        if "|" not in row:
+    for row in rows[1:]:
+        if len(row) < 2:
             continue
-        parts = [p.strip() for p in row.split("|") if p.strip()]
-        if len(parts) == 2 and parts[0] != "field":
-            k, v = parts
-            if v.lstrip("-").isdigit():
-                data[k] = int(v)
-            elif v.lower() == "true":
-                data[k] = True
-            elif v.lower() == "false":
-                data[k] = False
-            else:
-                data[k] = v
+        k, v = row[0].strip(), row[1].strip()
+        if v.lstrip("-").isdigit():
+            data[k] = int(v)
+        elif v.lower() == "true":
+            data[k] = True
+        elif v.lower() == "false":
+            data[k] = False
+        else:
+            data[k] = v
     return data
 
 @then('the response status is "ok"')

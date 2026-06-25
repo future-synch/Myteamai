@@ -24,15 +24,13 @@ def agent_headers():
     r = client.post("/auth/login", json={"email": "agent@curtissloane.com", "password": "agent123"})
     return {"Authorization": f"Bearer {r.json().get('access_token', '')}"}
 
-def _parse_table(table):
+def _parse_datatable(rows):
     data = {}
-    for row in table.strip().split("\n"):
-        if "|" not in row:
+    for row in rows[1:]:
+        if len(row) < 2:
             continue
-        parts = [p.strip() for p in row.split("|") if p.strip()]
-        if len(parts) == 2 and parts[0] != "field":
-            k, v = parts
-            data[k] = int(v) if v.lstrip("-").isdigit() else v
+        k, v = row[0].strip(), row[1].strip()
+        data[k] = int(v) if v.lstrip("-").isdigit() else v
     return data
 
 @given("an authenticated agent in the Curtis Sloane workspace")
@@ -43,13 +41,13 @@ def step_auth(ctx):
 def step_claude(ctx):
     pass
 
-@when(parsers.parse("the agent sends the request:\n{text}"))
-def step_send(ctx, text):
+@when("the agent sends the request:")
+def step_send(ctx, docstring):
     import re
-    m = re.search(r'for (.+?)(\s+[A-Z]\d+.*)?$', text.strip())
+    m = re.search(r'for (.+?)(\s+[A-Z]\d+.*)?$', docstring.strip())
     address = m.group(1).strip() if m else "8 Portland Road"
     postcode = "W11 4LA"
-    pc = re.search(r'([A-Z]{1,2}\d+\s?\d[A-Z]{2})', text)
+    pc = re.search(r'([A-Z]{1,2}\d+\s?\d[A-Z]{2})', docstring)
     if pc:
         postcode = pc.group(1)
     ctx.response = client.post(
@@ -63,9 +61,9 @@ def step_send(ctx, text):
         headers=ctx.headers
     )
 
-@when(parsers.parse("the agent submits a valuation brief request with:\n{table}"))
-def step_submit(ctx, table):
-    data = _parse_table(table)
+@when("the agent submits a valuation brief request with:")
+def step_submit(ctx, datatable):
+    data = _parse_datatable(datatable)
     if "address" in data and "property_address" not in data:
         data["property_address"] = data.pop("address")
     ctx.response = client.post("/bot/valuation-brief", json=data, headers=ctx.headers)

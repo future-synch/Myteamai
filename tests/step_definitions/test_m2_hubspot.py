@@ -24,22 +24,21 @@ def agent_headers():
     r = client.post("/auth/login", json={"email": "agent@curtissloane.com", "password": "agent123"})
     return {"Authorization": f"Bearer {r.json().get('access_token', '')}"}
 
-def _parse_table(table):
+def _parse_datatable(rows):
+    """pytest-bdd 8 passes a list-of-lists. First row is headers, rest are data."""
     data = {}
-    for row in table.strip().split("\n"):
-        if "|" not in row:
+    for row in rows[1:]:
+        if len(row) < 2:
             continue
-        parts = [p.strip() for p in row.split("|") if p.strip()]
-        if len(parts) == 2 and parts[0] != "field":
-            k, v = parts
-            if v.lstrip("-").isdigit():
-                data[k] = int(v)
-            elif v.lower() == "true":
-                data[k] = True
-            elif v.lower() == "false":
-                data[k] = False
-            else:
-                data[k] = v
+        k, v = row[0].strip(), row[1].strip()
+        if v.lstrip("-").isdigit():
+            data[k] = int(v)
+        elif v.lower() == "true":
+            data[k] = True
+        elif v.lower() == "false":
+            data[k] = False
+        else:
+            data[k] = v
     return data
 
 @given("an authenticated agent in the Curtis Sloane workspace")
@@ -54,9 +53,9 @@ def step_hs(ctx):
 def step_claude(ctx):
     pass
 
-@when(parsers.parse("the agent submits a welcome request with:\n{table}"))
-def step_submit(ctx, table):
-    ctx.response = client.post("/bot/welcome", json=_parse_table(table), headers=ctx.headers)
+@when("the agent submits a welcome request with:")
+def step_submit(ctx, datatable):
+    ctx.response = client.post("/bot/welcome", json=_parse_datatable(datatable), headers=ctx.headers)
 
 @then('the response status is "ok"')
 def step_ok(ctx):

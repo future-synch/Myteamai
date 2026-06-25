@@ -32,19 +32,22 @@ def step_auth(ctx):
 def step_seeded(ctx):
     pass
 
-@given(parsers.parse("the HubSpot sandbox contains the following active properties:\n{table}"))
-def step_properties(ctx, table):
-    pass
+@given("the HubSpot sandbox contains the following active properties:")
+def step_properties(ctx, datatable):
+    # Mocked HubSpot fixture honours these via conftest; store for later assertions.
+    headers = datatable[0]
+    ctx.seeded_properties = [dict(zip(headers, row)) for row in datatable[1:]]
 
 @given("the HubSpot sandbox contains an applicant with incomplete KYC")
 def step_incomplete(ctx):
-    pass
+    # Signals the conftest mock to include a KYC-incomplete applicant
+    ctx.expect_kyc_incomplete = True
 
-@when(parsers.parse("the agent sends the request:\n{text}"))
-def step_send(ctx, text):
+@when("the agent sends the request:")
+def step_send(ctx, docstring):
     import re
-    m = re.search(r'for (.+)$', text.strip(), re.MULTILINE)
-    address = m.group(1).strip() if m else text.strip()
+    m = re.search(r'for (.+)$', docstring.strip(), re.MULTILINE)
+    address = m.group(1).strip() if m else docstring.strip()
     ctx.response = client.post(
         "/bot/match-applicants",
         json={"property_ref": address, "max_results": 10},

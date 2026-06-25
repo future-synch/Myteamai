@@ -24,14 +24,12 @@ def agent_headers():
     r = client.post("/auth/login", json={"email": "agent@curtissloane.com", "password": "agent123"})
     return {"Authorization": f"Bearer {r.json().get('access_token', '')}"}
 
-def _parse_table(table):
+def _parse_datatable(rows):
     data = {}
-    for row in table.strip().split("\n"):
-        if "|" not in row:
+    for row in rows[1:]:
+        if len(row) < 2:
             continue
-        parts = [p.strip() for p in row.split("|") if p.strip()]
-        if len(parts) == 2 and parts[0] != "field":
-            data[parts[0]] = parts[1]
+        data[row[0].strip()] = row[1].strip()
     return data
 
 @given("an authenticated agent in the Curtis Sloane workspace")
@@ -42,10 +40,10 @@ def step_auth(ctx):
 def step_claude(ctx):
     pass
 
-@when(parsers.parse("the agent sends the request:\n{text}"))
-def step_send(ctx, text):
+@when("the agent sends the request:")
+def step_send(ctx, docstring):
     import re
-    name_m = re.search(r'to (Mrs?\.?\s+\w+)', text)
+    name_m = re.search(r'to (Mrs?\.?\s+\w+)', docstring)
     name = name_m.group(1) if name_m else "Mrs Patterson"
     ctx.response = client.post(
         "/bot/draft-outreach",
@@ -54,14 +52,14 @@ def step_send(ctx, text):
             "recipient_type": "long_term_resident",
             "channel": "handwritten_note",
             "agent_name": "James",
-            "context_notes": text.strip()
+            "context_notes": docstring.strip()
         },
         headers=ctx.headers
     )
 
-@when(parsers.parse("the agent submits an outreach request with:\n{table}"))
-def step_submit(ctx, table):
-    data = _parse_table(table)
+@when("the agent submits an outreach request with:")
+def step_submit(ctx, datatable):
+    data = _parse_datatable(datatable)
     if "context" in data:
         data["context_notes"] = data.pop("context")
     ctx.response = client.post("/bot/draft-outreach", json=data, headers=ctx.headers)

@@ -37,10 +37,10 @@ def step_seeded(ctx):
 def step_complete(ctx):
     ctx.complete_name = "Tom Baker"
 
-@when(parsers.parse("the agent sends the request:\n{text}"))
-def step_send(ctx, text):
+@when("the agent sends the request:")
+def step_send(ctx, docstring):
     import re
-    m = re.search(r'for (.+)$', text.strip())
+    m = re.search(r'for (.+)$', docstring.strip())
     name = m.group(1).strip() if m else "Tom Baker"
     ctx.response = client.post(
         "/bot/kyc-status",
