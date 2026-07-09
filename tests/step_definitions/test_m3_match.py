@@ -14,56 +14,44 @@ client = TestClient(app)
 
 
 # ---------------------------------------------------------------------------
-# Mock HubSpot for this file only.
-# Returns a deterministic mix of KYC-complete and KYC-incomplete applicants
-# so Test 7's "applicant has kyc_complete set to false" assertion can pass
-# without a live HubSpot key.
+# FS-16 mock wiring — Listing lookup + applicant fetch + Claude scoring.
+# Data comes from the fixtures in tests/conftest.py.
 # ---------------------------------------------------------------------------
 
-_SEEDED_APPLICANTS = [
-    {
-        "id": "101",
-        "properties": {
-            "firstname": "Tom", "lastname": "Baker",
-            "email": "tom.baker@example.com",
-            "applicant_source": "Referral",
-            "applicant_budget_gbp": "2500000",
-            "applicant_bedrooms_min": "4",
-            "kyc_status": "complete",
-        },
-    },
-    {
-        "id": "102",
-        "properties": {
-            "firstname": "Sarah", "lastname": "Chen",
-            "email": "sarah.chen@example.com",
-            "applicant_source": "Zoopla",
-            "applicant_budget_gbp": "2000000",
-            "applicant_bedrooms_min": "3",
-            "kyc_status": "outstanding",
-            "kyc_documents_outstanding": "proof_of_funds;proof_of_address",
-        },
-    },
-    {
-        "id": "103",
-        "properties": {
-            "firstname": "Michael", "lastname": "Brown",
-            "email": "michael.brown@example.com",
-            "applicant_source": "Rightmove",
-            "applicant_budget_gbp": "3000000",
-            "applicant_bedrooms_min": "5",
-            "kyc_status": "complete",
-        },
-    },
-]
-
-
 @pytest.fixture(autouse=True)
-def mock_hubspot(monkeypatch):
-    async def fake_list(*args, **kwargs):
-        limit = kwargs.get("limit", 10)
-        return _SEEDED_APPLICANTS[:limit]
-    monkeypatch.setattr(hubspot_service, "list_applicant_contacts", fake_list)
+def mock_hubspot_and_claude(
+    monkeypatch,
+    mock_hubspot_listing,
+    mock_hubspot_applicants,
+    mock_claude_scores,
+):
+    async def fake_get_listing(address, token=None):
+        # Any address goes to the canned listing in this test file.
+        return mock_hubspot_listing
+
+    async def fake_get_all_applicants(token=None):
+        return mock_hubspot_applicants
+
+    monkeypatch.setattr(hubspot_service, "get_listing_by_address", fake_get_listing)
+    monkeypatch.setattr(hubspot_service, "get_all_applicants",    fake_get_all_applicants)
+
+    # Deterministic Claude scoring: swap _anthropic_client for one whose
+    # messages.create returns the canned JSON string.
+    class _ScoringResponse:
+        def __init__(self, text):
+            self.content = [type("C", (), {"text": text})()]
+
+    class _ScoringClient:
+        class _Messages:
+            def __init__(self, text):
+                self._text = text
+            def create(self, **_kwargs):
+                return _ScoringResponse(self._text)
+        def __init__(self, text):
+            self.messages = self._Messages(text)
+
+    from app.functions import bot_functions as _bf
+    monkeypatch.setattr(_bf, "_anthropic_client", lambda: _ScoringClient(mock_claude_scores))
 
 
 class Ctx:

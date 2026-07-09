@@ -298,38 +298,192 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
 # fn_match_applicants  (M3 — HubSpot contacts.read)
 # ---------------------------------------------------------------------------
 
-async def fn_match_applicants(req: MatchApplicantsRequest) -> MatchApplicantsResponse:
+_KYC_COMPLETE_STATES = {"complete", "verified", "approved"}
+
+
+def _score_applicants_via_claude(property_summary: str, applicants: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Ask Claude to score each applicant. Returns list of dicts:
+        [{"applicant_id": str, "match_score": float, "match_reason": str}, ...]
+    Falls back to deterministic 0.7 scores if the call or parse fails.
+    """
+    client = _anthropic_client()
+    fallback = [
+        {
+            "applicant_id": a.get("id"),
+            "match_score":  0.7,
+            "match_reason": "Meets core criteria for this property based on budget and bedroom requirements.",
+        }
+        for a in applicants
+    ]
+    if client is None or not applicants:
+        return fallback
+
+    applicant_blocks = []
+    for i, a in enumerate(applicants[:20], start=1):  # cap at 20 for prompt size
+        applicant_blocks.append(
+            f"\nApplicant {i}: {a.get('name')} (ID: {a.get('id')})"
+            f"\nBudget: £{float(a.get('budget_gbp') or 0):,.0f}"
+            f"\nBedrooms wanted: {a.get('bedrooms_min')}-{a.get('bedrooms_max') or 'any'}"
+            f"\nProperty types: {a.get('property_types')}"
+            f"\nFinancing: {a.get('financing')}"
+            f"\nMust-haves: {a.get('must_have')}"
+            f"\nTimeline: {a.get('timeline_weeks')} weeks\n"
+        )
+
+    scoring_prompt = (
+        "You are a property matching expert at Curtis Sloane estate agency.\n\n"
+        "Score each applicant's fit for this property. Return ONLY valid JSON, no other text.\n\n"
+        f"PROPERTY:\n{property_summary}\n\n"
+        f"APPLICANTS:\n{''.join(applicant_blocks)}\n\n"
+        "Return a JSON array with one object per applicant:\n"
+        "[\n"
+        "  {\n"
+        "    \"applicant_id\": \"HubSpot contact ID\",\n"
+        "    \"match_score\": 0.0 to 1.0,\n"
+        "    \"match_reason\": \"Plain English explanation of at least 15 words referencing budget headroom, financing strength, feature alignment, and timeline urgency\"\n"
+        "  }\n"
+        "]\n\n"
+        "Scoring criteria:\n"
+        "- Cash buyer scores higher than mortgage when all else equal\n"
+        "- Larger budget headroom scores higher\n"
+        "- Must-have features present in listing score higher\n"
+        "- Shorter timeline scores higher (more urgent buyer)\n"
+        "- Score 0.9+ only for exceptional fit on all criteria\n"
+    )
+
     try:
-        results = await hubspot_service.list_applicant_contacts(limit=req.max_results)
-        matches = []
-        for r in results:
-            props = r.get("properties", {})
-            kyc_status_val = (props.get("kyc_status") or "").lower()
-            kyc_complete   = kyc_status_val == "complete"
-            score = 0.95 if kyc_complete else 0.65
-            budget = props.get("applicant_budget_gbp") or "?"
-            beds   = props.get("applicant_bedrooms_min") or "?"
-            reason = (
-                f"Budget up to £{budget}, {beds}+ bedrooms required "
-                f"({'KYC complete' if kyc_complete else 'KYC pending'})"
-            )
-            matches.append({
-                "id":            r.get("id"),
-                "properties":    props,
-                "kyc_complete":  kyc_complete,
-                "match_score":   score,
-                "match_reason":  reason,
-            })
-        matches.sort(key=lambda m: m["match_score"], reverse=True)
+        msg = client.messages.create(
+            model=MODEL_GENERATE,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": scoring_prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", raw, re.DOTALL)
+            if m:
+                raw = m.group(1)
+        parsed = json.loads(raw)
+        if isinstance(parsed, list) and all("applicant_id" in s for s in parsed):
+            return parsed
+        log.warning("Claude scoring returned unexpected shape; using fallback")
+        return fallback
+    except Exception as exc:
+        log.warning("Claude scoring failed (%s); using fallback", exc)
+        return fallback
+
+
+async def fn_match_applicants(req: MatchApplicantsRequest) -> MatchApplicantsResponse:
+    token = os.getenv("HUBSPOT_API_KEY")
+
+    # Stage 1: Property lookup ---------------------------------------------
+    try:
+        listing = await hubspot_service.get_listing_by_address(req.property_ref, token)
+    except Exception as exc:
+        log.warning("HubSpot listing lookup failed: %s", exc)
+        return MatchApplicantsResponse(
+            status="error",
+            error_code="HUBSPOT_SYNC_FAIL",
+            message=f"Could not reach HubSpot — please try again in a few minutes. ({exc})",
+            matches=[], count=0, total_searched=0,
+        )
+
+    if listing is None:
+        return MatchApplicantsResponse(
+            status="error",
+            error_code="PROPERTY_NOT_FOUND",
+            message=f"Property '{req.property_ref}' not found in HubSpot. Please provide price_gbp, bedrooms, and property_type.",
+            matches=[], count=0, total_searched=0,
+        )
+
+    price         = float(listing.get("price_gbp") or 0)
+    bedrooms      = int(listing.get("bedrooms") or 0)
+    listing_type  = (listing.get("listing_type") or "").lower()
+    outside_space = (listing.get("outside_space") or "").lower()
+
+    # Stage 2: Applicant retrieval ------------------------------------------
+    try:
+        all_applicants = await hubspot_service.get_all_applicants(token)
+    except Exception as exc:
+        log.warning("HubSpot applicants fetch failed: %s", exc)
+        return MatchApplicantsResponse(
+            status="error",
+            error_code="HUBSPOT_SYNC_FAIL",
+            message=f"Could not reach HubSpot — please try again in a few minutes. ({exc})",
+            matches=[], count=0, total_searched=0,
+        )
+    total_searched = len(all_applicants)
+
+    # Stage 3: Hard filter --------------------------------------------------
+    filtered: List[Dict[str, Any]] = []
+    for a in all_applicants:
+        budget  = float(a.get("budget_gbp") or 0)
+        bed_min = int(a.get("bedrooms_min") or 0)
+        bed_max = a.get("bedrooms_max")
+        prop_types = [t.strip().lower() for t in (a.get("property_types") or "").split(";") if t.strip()]
+
+        if budget > 0 and price > 0 and budget < price * 0.95:
+            continue
+        if bed_min > 0 and bedrooms > 0 and bed_min > bedrooms:
+            continue
+        if bed_max and int(bed_max) > 0 and bedrooms > 0 and int(bed_max) < bedrooms:
+            continue
+        if prop_types and listing_type and listing_type not in prop_types:
+            continue
+
+        filtered.append(a)
+
+    if not filtered:
         return MatchApplicantsResponse(
             status="ok",
-            matches=matches,
-            count=len(matches),
-            total_searched=len(matches),
+            matches=[], count=0, total_searched=total_searched,
+            message="No matching applicants found for this property based on current search criteria.",
         )
-    except Exception as exc:
-        log.warning("HubSpot search_contacts failed: %s", exc)
-        return MatchApplicantsResponse(status="error", matches=[], count=0)
+
+    # Stage 4: AI scoring ---------------------------------------------------
+    property_summary = (
+        f"Property: {listing.get('name')}\n"
+        f"Price: £{price:,.0f}\n"
+        f"Bedrooms: {bedrooms}\n"
+        f"Type: {listing_type}\n"
+        f"Outside space: {outside_space}\n"
+        f"Neighbourhood: {listing.get('neighborhood')}"
+    )
+    scores = _score_applicants_via_claude(property_summary, filtered)
+    score_map = {s.get("applicant_id"): s for s in scores}
+
+    # Stage 5: Assemble results with KYC flagging + sort + limit ------------
+    match_records: List[Dict[str, Any]] = []
+    for a in filtered:
+        s = score_map.get(a.get("id"), {})
+        kyc_complete = (a.get("kyc_status") or "").lower() in _KYC_COMPLETE_STATES
+        outstanding_raw = a.get("kyc_documents_outstanding") or ""
+        # Support both comma- and semicolon-separated formats
+        outstanding = [item.strip() for item in re.split(r"[,;]", outstanding_raw) if item.strip()]
+
+        match_records.append({
+            "applicant_id":          a.get("id"),
+            "name":                  a.get("name"),
+            "email":                 a.get("email"),
+            "match_score":           float(s.get("match_score", 0.5)),
+            "match_reason":          s.get("match_reason", "Meets core criteria."),
+            "kyc_complete":          kyc_complete,
+            "outstanding_kyc_items": [] if kyc_complete else outstanding,
+            "financing":             a.get("financing"),
+            "budget_gbp":            float(a.get("budget_gbp") or 0),
+            "timeline_weeks":        int(a.get("timeline_weeks")) if a.get("timeline_weeks") else None,
+        })
+
+    match_records.sort(key=lambda x: x["match_score"], reverse=True)
+    max_r = min(req.max_results or 5, 20)
+    match_records = match_records[:max_r]
+
+    return MatchApplicantsResponse(
+        status="ok",
+        matches=match_records,
+        count=len(match_records),
+        total_searched=total_searched,
+    )
 
 
 # ---------------------------------------------------------------------------

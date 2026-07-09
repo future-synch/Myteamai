@@ -278,3 +278,133 @@ async def list_applicant_contacts(
         properties=APPLICANT_READ_PROPS,
         limit=limit,
     )
+
+
+# ---------------------------------------------------------------------------
+# FS-16: Listings custom object + full applicant fetch
+# ---------------------------------------------------------------------------
+
+LISTINGS_OBJECT_ID = "0-420"
+
+LISTING_READ_PROPS = [
+    "hs_name", "hs_price", "hs_bedrooms", "hs_listing_type",
+    "hs_neighborhood", "hs_address_1",
+    "postcode", "outside_space", "works_required",
+]
+
+
+async def get_listing_by_address(address: str, token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Search HubSpot Listings (object 0-420) for a record matching the given
+    address string. Returns a normalised dict or None if not found.
+    """
+    if not (token or os.getenv("HUBSPOT_API_KEY")):
+        return None
+
+    headers = _headers() if token is None else {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  "application/json",
+    }
+
+    payload = {
+        "filterGroups": [
+            {"filters": [{"propertyName": "hs_name", "operator": "CONTAINS_TOKEN", "value": address}]},
+            {"filters": [{"propertyName": "hs_address_1", "operator": "CONTAINS_TOKEN", "value": address}]},
+        ],
+        "properties": LISTING_READ_PROPS,
+        "limit":      1,
+    }
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.post(
+            f"{HUBSPOT_BASE}/crm/v3/objects/{LISTINGS_OBJECT_ID}/search",
+            headers=headers,
+            json=payload,
+        )
+        if r.status_code >= 400:
+            raise HubSpotError(f"{r.status_code}: {r.text}")
+        results = r.json().get("results", [])
+        if not results:
+            return None
+        rec = results[0]
+        props = rec.get("properties", {})
+        return {
+            "id":             rec.get("id"),
+            "name":           props.get("hs_name") or props.get("hs_address_1"),
+            "price_gbp":      props.get("hs_price"),
+            "bedrooms":       props.get("hs_bedrooms"),
+            "listing_type":   props.get("hs_listing_type"),
+            "neighborhood":   props.get("hs_neighborhood"),
+            "address_1":      props.get("hs_address_1"),
+            "postcode":       props.get("postcode"),
+            "outside_space":  props.get("outside_space"),
+            "works_required": props.get("works_required"),
+        }
+
+
+APPLICANT_FULL_PROPS = APPLICANT_READ_PROPS + ["type_of_customer"]
+
+
+async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Fetch every contact that is an applicant. An applicant is any contact where
+    type_of_customer='applicant' OR applicant_budget_gbp is set. Paginates
+    through HubSpot's cursor-based results (limit 100 per page).
+    """
+    if not (token or os.getenv("HUBSPOT_API_KEY")):
+        return []
+
+    headers = _headers() if token is None else {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  "application/json",
+    }
+
+    results: List[Dict[str, Any]] = []
+    after: Optional[str] = None
+    max_pages = 20  # 20 * 100 = 2000-applicant safety cap
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        for _ in range(max_pages):
+            payload: Dict[str, Any] = {
+                # Match on either signal — HubSpot search supports OR across filterGroups.
+                "filterGroups": [
+                    {"filters": [{"propertyName": "type_of_customer", "operator": "EQ", "value": "applicant"}]},
+                    {"filters": [{"propertyName": "applicant_budget_gbp", "operator": "HAS_PROPERTY"}]},
+                ],
+                "properties": APPLICANT_FULL_PROPS,
+                "limit":      100,
+            }
+            if after:
+                payload["after"] = after
+
+            r = await client.post(
+                f"{HUBSPOT_BASE}/crm/v3/objects/contacts/search",
+                headers=headers,
+                json=payload,
+            )
+            if r.status_code >= 400:
+                raise HubSpotError(f"{r.status_code}: {r.text}")
+            body = r.json()
+            for rec in body.get("results", []):
+                p = rec.get("properties", {})
+                results.append({
+                    "id":                        rec.get("id"),
+                    "name":                      f"{p.get('firstname') or ''} {p.get('lastname') or ''}".strip(),
+                    "email":                     p.get("email"),
+                    "budget_gbp":                p.get("applicant_budget_gbp"),
+                    "bedrooms_min":              p.get("applicant_bedrooms_min"),
+                    "bedrooms_max":              p.get("applicant_bedrooms_max"),
+                    "property_types":            p.get("applicant_property_types"),
+                    "financing":                 p.get("applicant_financing"),
+                    "must_have":                 p.get("applicant_must_have"),
+                    "timeline_weeks":            p.get("applicant_timeline_weeks"),
+                    "kyc_status":                p.get("kyc_status"),
+                    "kyc_documents_outstanding": p.get("kyc_documents_outstanding"),
+                })
+
+            paging = body.get("paging", {}).get("next", {})
+            after = paging.get("after")
+            if not after:
+                break
+
+    return results

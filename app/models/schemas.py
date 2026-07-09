@@ -167,11 +167,26 @@ class MatchApplicantsRequest(BaseModel):
         return v.strip()
 
 
+class MatchResult(BaseModel):
+    applicant_id: str
+    name: str
+    email: Optional[str] = None
+    match_score: float
+    match_reason: str
+    kyc_complete: bool
+    outstanding_kyc_items: List[str] = Field(default_factory=list)
+    financing: Optional[str] = None
+    budget_gbp: float = 0
+    timeline_weeks: Optional[int] = None
+
+
 class MatchApplicantsResponse(BaseModel):
     status: str
-    matches: Optional[List[dict]] = None
+    matches: List[MatchResult] = Field(default_factory=list)
     count: int = 0
     total_searched: int = 0
+    message: Optional[str] = None
+    error_code: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
