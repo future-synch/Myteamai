@@ -405,6 +405,7 @@ ASSUMED_PRESENT: Dict[str, str] = {
     "pipeline_status": "42106882 s1. Existing set matches, including the 'Suppresed' typo.",
     "type_of_customer": "42106882 s1. Existing set matches. Row still marked PROPOSED.",
     "notes": "42106882 s7. Free text, no options.",
+    "kyc_documents_outstanding": "Kept per Olesya's ruling 2026-08-26. Retained despite R1 moving KYC to Deal.",
 }
 
 
@@ -431,7 +432,8 @@ LEGACY_DELETIONS: List[Tuple[str, str]] = [
     ("dream_home_notes", "No need. Overlapped must_have."),
     ("looking_to_sell", "No need. Overlapped property_to_sell."),
     ("kyc_status", "R1. Compliance moves to the Deal object."),
-    ("kyc_documents_outstanding", "INFERRED from R1, not explicitly decided. See module docstring."),
+    # kyc_documents_outstanding intentionally NOT deleted per Olesya's ruling 2026-08-26.
+    # Moved to ASSUMED_PRESENT so the verify step recognises it as expected-to-remain.
 ]
 
 
@@ -458,7 +460,7 @@ OPEN_DECISIONS: List[str] = [
     "beds_required upper bound: 50823188 s3.4 (Q6) answered 'Amend' with no amendment.",
     "lifecycle_stage: 42106882 s1a decides 10 custom stages. R5 uses HubSpot's built-in "
     "instead. Configuring the stages is a MANUAL step and has not been done.",
-    "kyc_documents_outstanding deletion is INFERRED from R1, not decided by Olesya.",
+    # kyc_documents_outstanding: RESOLVED 2026-08-26 — Olesya ruled KEEP. Field retained.
     "buyer_fee_agreed has no companion date field; the commercial gate is unenforceable.",
     "works_required legacy value mapping (Yes / blank) undecided. 50823188 s3.5.",
 ]
