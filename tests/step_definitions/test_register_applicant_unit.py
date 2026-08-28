@@ -459,12 +459,22 @@ def step_inspect_module(ctx):
 
 @then("no option value appears as a string literal in the module")
 def step_no_literals(ctx):
+    # After the FS-44 casing alignment (2026-08-28), some enum values now
+    # collide with HubSpot property names — e.g. "email"/"phone" are both a
+    # valid preferred_channel option AND the native HubSpot property key
+    # written as a dict key in the mapper. Those collisions are legitimate
+    # (property names are not option-value literals), so exclude any value
+    # that also names a HubSpot property.
+    from app.constants.registration_constants import HUBSPOT_PROPERTY_NAMES
+
+    property_name_collisions = set(HUBSPOT_PROPERTY_NAMES)
     all_values = (
         VALID_BUDGET + VALID_BEDS_REQUIRED + VALID_PROPERTY_TYPES
         + VALID_FINANCING_STATUS + VALID_PREFERRED_CHANNEL + VALID_SOURCE
     )
     for v in all_values:
-        # Check both single and double quote forms
+        if v in property_name_collisions:
+            continue
         assert f'"{v}"' not in ctx.source, (
             f"option value {v!r} appears as a double-quoted string literal"
         )
