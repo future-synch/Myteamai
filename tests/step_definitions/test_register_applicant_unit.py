@@ -589,10 +589,13 @@ def step_no_custom_email_phone(ctx):
 
 @when("the applicant is registered with every supported field populated")
 def step_register_every_field(ctx):
+    # FS-50 (2026-09-17): beds_max/must_have/timeline_weeks were removed from
+    # OPTIONAL_FIELDS after FS-44 deleted them from the dev schema. Populate
+    # every currently-supported field (required set + any optionals still
+    # configured) so this stays vocabulary-agnostic as the schema evolves.
     ctx.payload = _valid_payload()
-    ctx.payload["beds_max"] = "5"
-    ctx.payload["must_have"] = "garden"
-    ctx.payload["timeline_weeks"] = 6
+    for opt in OPTIONAL_FIELDS:
+        ctx.payload.setdefault(opt, "supported")
     _register(ctx)
 
 
@@ -604,17 +607,16 @@ def step_every_field_appears(ctx):
     assert contact["email"] == ctx.payload["email"]
     assert contact["phone"] == ctx.payload["phone"]
     assert contact["budget"] == ctx.payload["budget"]
-    # Optional supplied
-    assert contact.get("beds_max") == "5"
-    assert contact.get("must_have") == "garden"
-    assert contact.get("timeline_weeks") == 6
+    # Any configured optional fields supplied above also reach the payload.
+    for opt in OPTIONAL_FIELDS:
+        assert contact.get(opt) == ctx.payload[opt], f"{opt} did not reach payload"
 
 
 @then("no supplied field is silently discarded")
 def step_no_field_discarded(ctx):
     contact = _created_contact(ctx)
     assert contact is not None
-    for opt in ("beds_max", "must_have", "timeline_weeks"):
+    for opt in OPTIONAL_FIELDS:
         if opt in ctx.payload:
             assert opt in contact, f"{opt} silently dropped"
 

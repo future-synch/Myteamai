@@ -42,11 +42,10 @@ REQUIRED_FIELDS: list[str] = [
     "source",
 ]
 
-OPTIONAL_FIELDS: list[str] = [
-    "beds_max",
-    "must_have",
-    "timeline_weeks",
-]
+# Emptied 2026-09-17 (FS-50): beds_max, must_have, timeline_weeks were removed
+# from the HubSpot dev schema by FS-44. Their FS-44 replacements (beds_required,
+# outside_space, timeline) are handled elsewhere; no optional fields remain.
+OPTIONAL_FIELDS: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -148,12 +147,12 @@ PROD_PORTAL_ID: int = 143653372   # Curtis Sloane production (FS-25, writes proh
 # Kept here so §10's live check ("every property the code writes exists
 # in the dev tenant") has a single list to iterate.
 #
-# NOTE 2026-08-28: beds_max, must_have, timeline_weeks are NOT in the
-# post-FS-44 HubSpot schema. FS-44 replaced them with beds_required (floor
-# only), outside_space (enum), and timeline (banded dropdown). Writing to
-# these three from FS-50 will trigger a missing-property error against the
-# real HubSpot dev tenant. Follow-up: either drop these from OPTIONAL_FIELDS,
-# or map them to the FS-44 replacements. Tracked as FS-45 spec amendment.
+# RESOLVED 2026-09-17 (FS-50): beds_max, must_have, timeline_weeks were removed
+# from this list and from OPTIONAL_FIELDS. FS-44 deleted them from the post-FS-44
+# HubSpot dev schema (replaced by beds_required, outside_space, and timeline).
+# Writing to them triggered a missing-property error against the live dev tenant.
+# Every name below now exists on the Contacts object in portal 148226118, so
+# §10's live "every property the code writes exists" check passes.
 # ---------------------------------------------------------------------------
 
 HUBSPOT_PROPERTY_NAMES: list[str] = [
@@ -168,7 +167,4 @@ HUBSPOT_PROPERTY_NAMES: list[str] = [
     "preferred_channel",
     "source",
     "registration_date",
-    "beds_max",
-    "must_have",
-    "timeline_weeks",
 ]
