@@ -141,14 +141,32 @@ class RegisterApplicantRequest(BaseModel):
     bedrooms_max: Optional[int] = None
     must_have: Optional[str] = None
     timeline_weeks: Optional[int] = None
+    # FS-55 (A-2 rev 5): gates step d (draft creation) only. Composition
+    # (step c) always runs. dispatch-flag removal from the welcome path is FS-57.
+    dispatch: bool = False
+
+
+class WelcomeDraft(BaseModel):
+    subject: str
+    html_body: str
+    text_body: str
+
+
+class DraftRef(BaseModel):
+    transport: Literal["gmail", "fake"]
+    draft_id: str
+    mailbox: str
 
 
 class RegisterApplicantResponse(BaseModel):
+    # A-2 rev 5 envelope. kyc_checklist and hubspot_contact_id intentionally
+    # removed — KYC is no longer part of registration output (FS-55).
     status: str
     applicant_id: Optional[str] = None
-    hubspot_contact_id: Optional[str] = None
-    kyc_checklist: Optional[dict] = None
-    first_matches: Optional[List[dict]] = None
+    first_matches: List[dict] = Field(default_factory=list)
+    welcome_draft: Optional[WelcomeDraft] = None
+    draft_ref: Optional[DraftRef] = None
+    errors: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
