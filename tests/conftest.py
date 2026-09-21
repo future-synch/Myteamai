@@ -14,6 +14,26 @@ import pytest
 os.environ.setdefault("ANTHROPIC_MODE", "mock")
 
 
+# ---------------------------------------------------------------------------
+# FS-50 — Gherkin tag → pytest marker conversion
+# ---------------------------------------------------------------------------
+# pytest-bdd's default tag→marker mapping preserves hyphens, which pytest's
+# marker filter can't select in `-m` expressions. Convert here so the
+# addopts filter in pytest.ini works, and so @blocked-duplicate-policy
+# scenarios skip by default rather than run.
+
+def pytest_bdd_apply_tag(tag: str, function):
+    if tag == "blocked-duplicate-policy":
+        marker = pytest.mark.skip(reason="Blocked on duplicate-applicant policy decision (Q6)")
+        marker(function)
+        return True
+    if tag == "integration":
+        marker = pytest.mark.integration
+        marker(function)
+        return True
+    return None
+
+
 class StepContext:
     """Mutable context bag shared between BDD step functions."""
     def __init__(self):
