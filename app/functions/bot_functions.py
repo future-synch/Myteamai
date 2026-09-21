@@ -22,6 +22,14 @@ from app.models.schemas import (
     WelcomeRequest, WelcomeResponse,
 )
 from app.services import hubspot_service
+from app.constants.registration_constants import VALID_PROPERTY_TYPES, VALID_SOURCE
+from app.services.hubspot_registration import (
+    RegistrationError,
+    register_applicant_in_hubspot,
+)
+from app.services.hubspot_client import build_hubspot_client
+from app.services.matching_stub import find_matching_listings
+from app.services.transports.gmail import create_draft
 
 log = logging.getLogger(__name__)
 
@@ -212,86 +220,151 @@ async def fn_generate_welcome_from_text(
 # fn_register_applicant  (M2 — HubSpot contacts.write)
 # ---------------------------------------------------------------------------
 
-def _initial_kyc_checklist() -> Dict[str, Any]:
-    """Standard KYC checklist for a new applicant — all items unticked."""
+# ---------------------------------------------------------------------------
+# FS-55 adapters — map the RegisterApplicantRequest onto the FS-50 criteria
+# vocabulary (A-2 rev 5). No pre-amendment field names appear here.
+# ---------------------------------------------------------------------------
+
+# Source enum (lowercase, FS-50 constants) <-> WelcomeRequest's title-case Literal.
+_SOURCE_TITLE = {"rightmove": "Rightmove", "zoopla": "Zoopla", "referral": "Referral",
+                 "direct": "Direct", "other": "Other"}
+
+
+def _budget_to_band(gbp: int) -> str:
+    # Round UP to the nearest £1M ceiling; anything above £10M -> ten_plus.
+    # PENDING R8 — not confirmed by Olesya. See TS v1.2 page 50823188 section 3.3.
+    import math
+    millions = math.ceil(gbp / 1_000_000)
+    return f"up_to_{millions}m" if millions <= 10 else "ten_plus"
+
+
+def _beds_to_band(n: int) -> str:
+    # Floor band N_plus, capped at the configured ceiling (6_plus).
+    return f"{min(max(n, 1), 6)}_plus"
+
+
+def _norm_source(s: str) -> str:
+    v = (s or "").strip().lower()
+    return v if v in VALID_SOURCE else "other"
+
+
+def _norm_property_types(types: List[str]) -> List[str]:
+    # "any" -> skip predicate (no property-type constraint stored / matched).
+    # PENDING — not formally confirmed.
+    if "any" in types:
+        return []
+    return [t for t in types if t in VALID_PROPERTY_TYPES]
+
+
+def _request_to_criteria(req: RegisterApplicantRequest) -> Dict[str, Any]:
     return {
-        "proof_of_id":      {"received": False, "label": "Proof of ID (passport or driving licence)"},
-        "proof_of_address": {"received": False, "label": "Proof of address (utility bill, dated <3 months)"},
-        "proof_of_funds":   {"received": False, "label": "Proof of funds (bank statement or AIP letter)"},
+        "full_name":         req.full_name,
+        "email":             req.email,
+        "phone":             req.phone,
+        "budget":            _budget_to_band(req.budget_gbp),
+        "beds_required":     _beds_to_band(req.bedrooms_min),
+        "property_types":    _norm_property_types(req.property_types),
+        "financing_status":  req.financing,
+        "preferred_channel": req.preferred_channel,
+        "source":            _norm_source(req.source),
     }
 
 
-def _first_property_matches(req: RegisterApplicantRequest) -> List[Dict[str, Any]]:
+async def _compose_welcome_draft(criteria: Dict[str, Any], matches: List[dict]) -> Optional[Dict[str, str]]:
     """
-    Return up to 3 property suggestions derived from the applicant criteria.
-    Synthetic until a real property dataset is wired in (M3+ feature work).
-    Scores are within bounds and ordered so tests assertions hold.
+    Step-c adapter: run fn_generate_welcome (WelcomeRequest -> single draft
+    string) and shape it into the A-2 rev 5 {subject, html_body, text_body}.
+    Called WITHOUT dispatch — fn_generate_welcome's dispatch flag is untouched
+    (removal is FS-57).
     """
-    base_budget = req.budget_gbp
-    base_beds   = req.bedrooms_min
-    return [
-        {
-            "address":      "8 Portland Road, W11 4LA",
-            "price_gbp":    int(base_budget * 0.95),
-            "bedrooms":     base_beds,
-            "match_score":  0.92,
-            "match_reason": f"On budget at £{int(base_budget * 0.95):,}, {base_beds} bed",
-        },
-        {
-            "address":      "22 Abbotsbury Road, W14 8EP",
-            "price_gbp":    int(base_budget * 0.88),
-            "bedrooms":     base_beds,
-            "match_score":  0.84,
-            "match_reason": f"Under budget at £{int(base_budget * 0.88):,}, matches {base_beds} bed minimum",
-        },
-        {
-            "address":      "14 Ladbroke Road, W11 3NR",
-            "price_gbp":    int(base_budget * 1.05),
-            "bedrooms":     base_beds + 1,
-            "match_score":  0.71,
-            "match_reason": f"Slightly over budget at £{int(base_budget * 1.05):,}, has extra bedroom",
-        },
-    ][:3]
+    wreq = WelcomeRequest(
+        client_name=criteria["full_name"],
+        source=_SOURCE_TITLE.get(criteria["source"], "Other"),
+        agent_name="Curtis Sloane",  # TODO: pull from tenant config at M5 go-live
+        dispatch=False,
+        budget_gbp=None,
+        property_type=", ".join(criteria.get("property_types") or []) or None,
+    )
+    wres = await fn_generate_welcome(wreq)
+    if wres.status != "ok" or not wres.message_draft:
+        raise RuntimeError(f"welcome composition returned status={wres.status}")
+    text = wres.message_draft
+    return {
+        "subject":   f"Welcome to Curtis Sloane, {criteria['full_name']}",
+        "html_body": "".join(f"<p>{p.strip()}</p>" for p in text.split("\n\n") if p.strip()),
+        "text_body": text,
+    }
 
 
 async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplicantResponse:
-    parts = req.full_name.strip().split()
-    firstname = parts[0]
-    lastname  = " ".join(parts[1:]) if len(parts) > 1 else ""
+    """
+    FS-55 four-step orchestrator (A-2 rev 5). This function performs none of the
+    work itself — it delegates to four collaborators and isolates each one's
+    failure so a later step never unwinds an earlier success.
+    """
+    errors: List[str] = []
+    criteria = _request_to_criteria(req)
 
-    properties: Dict[str, Any] = {
-        "firstname":                    firstname,
-        "lastname":                     lastname,
-        "email":                        req.email,
-        "phone":                        req.phone,
-        "applicant_budget_gbp":         req.budget_gbp,
-        "applicant_bedrooms_min":       req.bedrooms_min,
-        "applicant_property_types":     ";".join(req.property_types),
-        "applicant_financing":          req.financing,
-        "applicant_preferred_channel":  req.preferred_channel,
-        "applicant_source":             req.source,
-    }
-    if req.bedrooms_max is not None:
-        properties["applicant_bedrooms_max"] = req.bedrooms_max
-    if req.must_have:
-        properties["applicant_must_have"] = req.must_have
-    if req.timeline_weeks is not None:
-        properties["applicant_timeline_weeks"] = req.timeline_weeks
-
+    # ---- Step a: register in HubSpot — ALWAYS. Validation or step-a failure
+    # returns early; steps b/c/d never run. -------------------------------
     try:
-        result = await hubspot_service.create_contact(properties)
-        contact_id = str(result.get("id", ""))
-        log.info("HubSpot contact created: %s (%s)", contact_id, req.email)
+        applicant_id = await register_applicant_in_hubspot(criteria, build_hubspot_client())
+    except RegistrationError as exc:
+        errors.append(exc.code or "HUBSPOT_SYNC_FAIL")
         return RegisterApplicantResponse(
-            status="ok",
-            applicant_id=contact_id,
-            hubspot_contact_id=contact_id,
-            kyc_checklist=_initial_kyc_checklist(),
-            first_matches=_first_property_matches(req),
+            status="error", applicant_id=None, first_matches=[],
+            welcome_draft=None, draft_ref=None, errors=errors,
         )
     except Exception as exc:
-        log.warning("HubSpot create_contact failed: %s", exc)
-        return RegisterApplicantResponse(status="error", applicant_id=None)
+        log.warning("Step a (register) failed: %s", exc)
+        errors.append("HUBSPOT_SYNC_FAIL")
+        return RegisterApplicantResponse(
+            status="error", applicant_id=None, first_matches=[],
+            welcome_draft=None, draft_ref=None, errors=errors,
+        )
+
+    # ===== applicant STAYS REGISTERED regardless of what b/c/d do =====
+
+    # ---- Step b: matching — ALWAYS; isolated. --------------------------
+    first_matches: List[dict] = []
+    try:
+        # STUB — returns [] until FS-64 + FS-63 resolved. Real engine: FS-16.
+        first_matches = find_matching_listings(criteria, limit=3)
+    except Exception as exc:
+        log.warning("Step b (matching) failed: %s", exc)
+        errors.append(f"MATCH_FAILED: {exc}")
+        first_matches = []
+
+    # ---- Step c: welcome composition — ALWAYS; isolated. ---------------
+    welcome_draft: Optional[Dict[str, str]] = None
+    try:
+        # PENDING Olesya confirmation — composition runs on every registration
+        # including dispatch=false per A-2 rev 5.
+        # See A-2 open item 9 and page 50823188 section 1.10.
+        welcome_draft = await _compose_welcome_draft(criteria, first_matches)
+    except Exception as exc:
+        log.warning("Step c (welcome) failed: %s", exc)
+        errors.append(f"WELCOME_FAILED: {exc}")
+        welcome_draft = None
+
+    # ---- Step d: create draft — ONLY when dispatch=True; isolated. ------
+    draft_ref: Optional[Dict[str, str]] = None
+    if getattr(req, "dispatch", False) and welcome_draft is not None:
+        try:
+            draft_ref = create_draft(welcome_draft)
+        except Exception as exc:
+            log.warning("Step d (draft) failed: %s", exc)
+            errors.append(f"DRAFT_FAILED: {exc}")
+            draft_ref = None
+
+    return RegisterApplicantResponse(
+        status="ok",
+        applicant_id=applicant_id,
+        first_matches=first_matches,
+        welcome_draft=welcome_draft,
+        draft_ref=draft_ref,
+        errors=errors,
+    )
 
 
 # ---------------------------------------------------------------------------

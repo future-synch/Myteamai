@@ -1,14 +1,14 @@
-Feature: Applicant Registration — fn_register_applicant
+Feature: Applicant Registration — fn_register_applicant (A-2 rev 5)
   As an estate agent at Curtis Sloane
-  I want to register new applicants with full profile and KYC checklist
-  So that every applicant is tracked from first contact
+  I want registration to orchestrate register → match → welcome → draft
+  So that an applicant is registered and a welcome draft is composed every time
 
   Background:
     Given an authenticated agent in the Curtis Sloane workspace
     And the HubSpot sandbox is connected
 
-  # --- Test 4: Full registration ---
-  Scenario: Register applicant with full form creates HubSpot record
+  # --- Test 4: Full registration returns the A-2 rev 5 envelope ---
+  Scenario: Register applicant returns id, welcome draft, and matches list
     When the agent submits the applicant registration form with:
       | field             | value               |
       | full_name         | Tom Baker           |
@@ -21,23 +21,22 @@ Feature: Applicant Registration — fn_register_applicant
       | preferred_channel | email               |
       | source            | Referral            |
     Then the response status is "ok"
-    And a HubSpot contact record is created for "Tom Baker"
-    And a HubSpot contact ID is returned
-    And a KYC checklist is returned
-    And the top 3 property matches are returned
-    And all match scores are between 0.0 and 1.0
-    And all match reasons are readable plain English
+    And an applicant ID is returned
+    And a welcome draft is returned with subject, html_body and text_body
+    And first_matches is a list
+    And draft_ref is null
+    And errors is empty
 
-  Scenario: KYC checklist contains all three required items
+  # --- Test 5: dispatch=true creates a draft reference (step d) ---
+  Scenario: Registering with dispatch true returns a draft reference
+    When the agent registers an applicant with dispatch true
+    Then the response status is "ok"
+    And an applicant ID is returned
+    And a welcome draft is returned with subject, html_body and text_body
+    And draft_ref has transport, draft_id and mailbox
+
+  # --- Matching is stubbed until FS-64 + FS-63 land ---
+  Scenario: Matching returns no listings until the engine lands
     When the agent registers a cash buyer applicant
-    Then the KYC checklist contains:
-      | item             |
-      | proof_of_id      |
-      | proof_of_address |
-      | proof_of_funds   |
-    And all items have received set to false initially
-
-  Scenario: Matches returned are plausible for budget and bedrooms
-    When the agent registers an applicant with budget 2500000 and bedrooms_min 4
-    Then all returned matches have price_gbp less than or equal to 2625000
-    And all returned matches have bedrooms greater than or equal to 4
+    Then the response status is "ok"
+    And first_matches is empty

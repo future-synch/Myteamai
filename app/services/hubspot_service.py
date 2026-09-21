@@ -25,6 +25,10 @@ TIMEOUT      = 15.0
 # Created idempotently on first boot (lifespan hook in app/main.py).
 # Group "contactinformation" is HubSpot's built-in default — always exists.
 # ---------------------------------------------------------------------------
+# NOTE: pre-amendment field names below (applicant_budget_gbp etc)
+# are the read vocabulary for fn_match_applicants and fn_kyc_status.
+# These will be renamed when those functions migrate in FS-16/FS-64.
+# Do not remove here — removing breaks test_m3_match and test_m3_kyc.
 
 _CUSTOM_PROPERTIES: List[Dict[str, Any]] = [
     {
