@@ -871,3 +871,30 @@ def step_prefix_searchable(ctx):
         if c.get("email", "").startswith("TEST-")
     ]
     assert len(matches) >= 1
+
+
+# ============================================================================
+# SECTION 8b: Deny-list invariant (FS-50 multi-tenant guard, per John's ticket)
+# ============================================================================
+
+async def test_denylist_refuses_prod_even_when_dev_portal_id_is_prod(monkeypatch):
+    """
+    The deny-list is checked FIRST and is not overridable by any env var: a
+    client bound to the forbidden production portal is refused as
+    TENANT_PRODUCTION_REFUSED even when DEV_PORTAL_ID has been (mis)configured
+    to that same portal. Proves guard order (1)FORBIDDEN → (2)DEV → (3)else.
+    """
+    import app.services.hubspot_registration as hr
+
+    # Simulate the misconfiguration John's design must survive:
+    # DEV_PORTAL_ID pointed at the production portal.
+    monkeypatch.setattr(hr, "DEV_PORTAL_ID", PROD_PORTAL_ID)
+
+    client = FakeHubspotClient(portal_id=PROD_PORTAL_ID)
+
+    with pytest.raises(RegistrationError) as exc_info:
+        await hr._verify_tenant(client)
+
+    assert exc_info.value.code == "TENANT_PRODUCTION_REFUSED", exc_info.value.code
+    # Deny-list refusal happens before any write is attempted.
+    assert not client.any_create_attempted()
