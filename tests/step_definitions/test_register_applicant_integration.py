@@ -2,7 +2,7 @@
 FS-50 — Integration-suite step definitions for
 m3_register_applicant_integration.feature (Section 10).
 
-These run LIVE against the FutureSynch HubSpot dev tenant (portal 148226118).
+These run LIVE against the FutureSynch HubSpot dev tenant (the DEV_PORTAL_ID).
 They are tagged @integration and excluded from the default run; execute with:
 
     pytest -m integration
@@ -12,7 +12,7 @@ Safety model (why this file is careful):
                      at Curtis Sloane production). Absent token → the whole
                      suite skips cleanly with a named reason.
   * Portal guard   — the session's first network call fetches the portal ID and
-                     REFUSES to run unless it is the dev tenant (148226118).
+                     REFUSES to run unless it is the dev tenant (the DEV_PORTAL_ID).
                      Production (143653372) or any unrecognised portal aborts
                      before a single write.
   * Test data      — every applicant email is TEST-{run}-{n}@example.com.
@@ -41,6 +41,7 @@ from pytest_bdd import scenarios, given, when, then, parsers
 
 from app.constants.registration_constants import (
     DEV_PORTAL_ID,
+    FORBIDDEN_PORTAL_IDS,
     HUBSPOT_PROPERTY_NAMES,
     PROD_PORTAL_ID,
     VALID_BEDS_REQUIRED,
@@ -73,7 +74,7 @@ TEST_EMAIL_DOMAIN = "@example.com"  # RFC 2606 reserved — cannot receive mail
 
 SKIP_REASON = (
     "HS_DEV_TOKEN is not set — the FS-50 integration suite requires the "
-    "FutureSynch dev tenant token (portal 148226118). Set HS_DEV_TOKEN to run."
+    "FutureSynch dev tenant token (the DEV_PORTAL_ID). Set HS_DEV_TOKEN to run."
 )
 
 # Value properties HubSpot returns byte-for-byte (excludes email, which HubSpot
@@ -359,10 +360,10 @@ def integration_session():
     # First network call IS the portal guard — refuse anything but dev.
     info = run_async(client.get_portal_info())
     portal_id = info.get("portalId")
-    if portal_id == PROD_PORTAL_ID:
+    if portal_id in FORBIDDEN_PORTAL_IDS:
         pytest.fail(
-            f"Refusing to run: HS_DEV_TOKEN authenticates to Curtis Sloane "
-            f"PRODUCTION portal {PROD_PORTAL_ID}. Writes are prohibited (FS-25).",
+            f"Refusing to run: HS_DEV_TOKEN authenticates to a forbidden "
+            f"(production) portal {portal_id}. Writes are prohibited (FS-25).",
             pytrace=False,
         )
     if portal_id != DEV_PORTAL_ID:
@@ -509,7 +510,7 @@ def step_portal_fetched(ictx):
     assert ictx.record is not None and "portalId" in ictx.record
 
 
-@then("the run continues only if it is 148226118")
+@then("the run continues only if it is the DEV_PORTAL_ID")
 def step_run_continues_dev_only(ictx):
     assert ictx.session.portal_id == DEV_PORTAL_ID
     assert ictx.record["portalId"] == DEV_PORTAL_ID
@@ -530,7 +531,7 @@ def step_token_prod(ictx):
     ictx.stub = _StubClient(PROD_PORTAL_ID)
 
 
-@given("the supplied token belongs to a portal that is not 148226118")
+@given("the supplied token belongs to a portal that is not the DEV_PORTAL_ID")
 def step_token_unknown(ictx):
     ictx.stub = _StubClient(999999999)
 
@@ -661,7 +662,7 @@ def step_fetch_returns_record(ictx):
     assert ictx.record.get("id") == ictx.contact_id
 
 
-@then("the record is visible in portal 148226118")
+@then("the record is visible in the DEV_PORTAL_ID")
 def step_record_visible(ictx):
     assert ictx.session.portal_id == DEV_PORTAL_ID
     assert ictx.record is not None and ictx.record.get("id") == ictx.contact_id

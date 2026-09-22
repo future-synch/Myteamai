@@ -108,7 +108,7 @@ def step_fake_client(ctx):
     ctx.client = FakeHubspotClient()
 
 
-@given("the fake client is bound to portal 148226118")
+@given("the fake client is bound to the DEV_PORTAL_ID")
 def step_dev_portal(ctx):
     ctx.client.portal_id = DEV_PORTAL_ID
 
@@ -796,7 +796,7 @@ def step_client_bound_prod(ctx):
     ctx.client.portal_id = PROD_PORTAL_ID
 
 
-@given("the client is bound to a portal that is neither 148226118 nor 143653372")
+@given("the client is bound to a portal that is neither the DEV_PORTAL_ID nor 143653372")
 def step_client_bound_unknown(ctx):
     ctx.client.portal_id = 999999999
 
