@@ -1,6 +1,6 @@
 Feature: Register an applicant against the live dev tenant
   As the integration half of the register_applicant_in_hubspot() test suite
-  I want the same behaviour verified against FutureSynch dev portal 148226118
+  I want the same behaviour verified against the FutureSynch DEV_PORTAL_ID dev tenant
   So that a property renamed during the FS-44 migration, an option
     HubSpot itself won't accept, or a value HubSpot coerces on the way in
     is caught in test rather than in production
@@ -9,7 +9,7 @@ Feature: Register an applicant against the live dev tenant
   # SECTION 10: Live dev tenant integration      [@integration]
   # =====================================================
   # Run: pytest -m integration
-  # Requires HS_DEV_TOKEN authenticating to portal 148226118.
+  # Requires HS_DEV_TOKEN authenticating to the DEV_PORTAL_ID.
   # Never against production — see the refusal scenarios below.
   # NOTE: integration step definitions are added in a later commit
   # per the PM's execution order — this file lands with the feature
@@ -28,7 +28,7 @@ Feature: Register an applicant against the live dev tenant
     Given HS_DEV_TOKEN is set
     When the integration suite starts
     Then the portal ID is fetched from the account information endpoint
-    And the run continues only if it is 148226118
+    And the run continues only if it is the DEV_PORTAL_ID
     And the verified portal ID is printed in the run output
 
   @integration
@@ -41,7 +41,7 @@ Feature: Register an applicant against the live dev tenant
 
   @integration
   Scenario: The suite refuses to run against any unrecognised portal
-    Given the supplied token belongs to a portal that is not 148226118
+    Given the supplied token belongs to a portal that is not the DEV_PORTAL_ID
     When the integration suite starts
     Then the run aborts before any write
 
@@ -64,7 +64,7 @@ Feature: Register an applicant against the live dev tenant
     When a valid applicant is registered against the live dev tenant
     Then HubSpot returns a contact ID
     And fetching that ID returns a contact record
-    And the record is visible in portal 148226118
+    And the record is visible in the DEV_PORTAL_ID
 
   @integration
   Scenario: Every property the code writes exists in the dev tenant
