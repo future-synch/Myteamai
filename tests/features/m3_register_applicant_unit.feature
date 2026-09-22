@@ -6,7 +6,7 @@ Feature: Register an applicant in HubSpot
 
   Background:
     Given a fake HubSpot client with no network access
-    And the fake client is bound to portal 148226118
+    And the fake client is bound to the DEV_PORTAL_ID
     And the canonical enum constants module is loaded
     And a valid applicant payload
 
@@ -294,7 +294,7 @@ Feature: Register an applicant in HubSpot
     And the error states that writes to the production tenant are prohibited
 
   Scenario: A write to an unrecognised portal is refused
-    Given the client is bound to a portal that is neither 148226118 nor 143653372
+    Given the client is bound to a portal that is neither the DEV_PORTAL_ID nor 143653372
     When the applicant is registered
     Then the registration is refused
     And no create call is made

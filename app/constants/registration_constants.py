@@ -10,7 +10,7 @@ function code all pick up the change without edits.
 Casing rule (RESOLVED 2026-08-28 after FS-44 completion):
 Internal HubSpot values are lowercase snake_case. Human-readable labels
 carry the capitalisation on the HubSpot side. Every value below matches
-the option set actually configured on HubSpot dev (portal 148226118)
+the option set actually configured on HubSpot dev (the DEV_PORTAL_ID dev tenant)
 after FS-44 ran successfully. Enum comparison is EXACT, not
 case-insensitive — see §4 "Enum comparison is exact" scenario for the
 guard. If Contacts and Listings ever disagree on casing, the join
@@ -25,6 +25,8 @@ Value source: scripts/contacts_schema.py (FS-44 canonical schema),
 mirrored via GET /crm/v3/properties/contacts/* against HubSpot dev
 after --apply --confirm-deletes on 2026-08-28.
 """
+
+import os
 
 # ---------------------------------------------------------------------------
 # Fields on the applicant payload
@@ -138,8 +140,12 @@ ENUM_SETS: dict[str, list[str]] = {
 # HubSpot portal IDs — tenant safety guard
 # ---------------------------------------------------------------------------
 
-DEV_PORTAL_ID: int = 148226118    # FutureSynch dev (writes allowed)
+DEV_PORTAL_ID: int = int(os.getenv("DEV_PORTAL_ID") or "149305651")  # FutureSynch dev (writes allowed); default new tenant 149305651, override via env
 PROD_PORTAL_ID: int = 143653372   # Curtis Sloane production (FS-25, writes prohibited)
+
+# Deny-list checked FIRST in the tenant guard — never overridable by any env var
+# (not even DEV_PORTAL_ID). A token resolving to a forbidden portal is always refused.
+FORBIDDEN_PORTAL_IDS: frozenset[int] = frozenset({PROD_PORTAL_ID})
 
 
 # ---------------------------------------------------------------------------
@@ -151,8 +157,8 @@ PROD_PORTAL_ID: int = 143653372   # Curtis Sloane production (FS-25, writes proh
 # from this list and from OPTIONAL_FIELDS. FS-44 deleted them from the post-FS-44
 # HubSpot dev schema (replaced by beds_required, outside_space, and timeline).
 # Writing to them triggered a missing-property error against the live dev tenant.
-# Every name below now exists on the Contacts object in portal 148226118, so
-# §10's live "every property the code writes exists" check passes.
+# Every name below now exists on the Contacts object in the DEV_PORTAL_ID dev
+# tenant, so §10's live "every property the code writes exists" check passes.
 # ---------------------------------------------------------------------------
 
 HUBSPOT_PROPERTY_NAMES: list[str] = [
