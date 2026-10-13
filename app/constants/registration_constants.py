@@ -146,12 +146,14 @@ ENUM_SETS: dict[str, list[str]] = {
 # HubSpot portal IDs — tenant safety guard
 # ---------------------------------------------------------------------------
 
-# FAIL CLOSED (FS-67): no production default. When DEV_PORTAL_ID is unset/empty
-# the tenant guard refuses every write (see _verify_tenant). Set it explicitly in
-# .env and on Render; it must agree with the portal HS_DEV_TOKEN / HUBSPOT_API_KEY
-# resolves to.
-_dev_portal_env = os.getenv("DEV_PORTAL_ID")
-DEV_PORTAL_ID: int | None = int(_dev_portal_env) if _dev_portal_env else None
+# FAIL CLOSED (FS-67): no production default. DEV_PORTAL_ID MUST be set — unset
+# raises at import (clear RuntimeError) rather than booting with a bad value.
+# Set it explicitly in .env and on Render; it must agree with the portal the
+# HUBSPOT_API_KEY / HS_DEV_TOKEN resolves to. (Tests set a value via conftest.)
+_raw = os.getenv("DEV_PORTAL_ID")
+if not _raw:
+    raise RuntimeError("DEV_PORTAL_ID must be set (demo portal id, e.g. 149441587)")
+DEV_PORTAL_ID = int(_raw)
 PROD_PORTAL_ID: int = 143653372   # Curtis Sloane production (FS-25, writes prohibited)
 
 # Deny-list checked FIRST in the tenant guard — never overridable by any env var
