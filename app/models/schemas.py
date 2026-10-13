@@ -133,7 +133,13 @@ class RegisterApplicantRequest(BaseModel):
     budget_gbp: int = Field(ge=1, validation_alias=AliasChoices("budget", "budget_gbp"))
     bedrooms_min: int = Field(ge=1)
     # TS Section 5.2: valid property types include "any"
-    property_types: List[Literal["house", "flat", "maisonette", "any"]]
+    # FS-67: canonical values are house/apartment/maisonette/mews/penthouse/
+    # townhouse. Legacy "flat"/"any" are still ACCEPTED at the API boundary and
+    # normalised before the HubSpot write (flat -> apartment, any -> skip).
+    property_types: List[Literal[
+        "house", "apartment", "maisonette", "mews", "penthouse", "townhouse",
+        "flat", "any",
+    ]]
     # TS Section 5.2: financing enum (confirmed with John 16 April 2026)
     financing: Literal["cash", "mortgage_aip", "mortgage_no_aip", "unknown"]
     preferred_channel: Literal["email", "phone", "whatsapp"]

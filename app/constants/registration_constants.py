@@ -76,9 +76,13 @@ VALID_SOURCE: list[str] = [
 ]
 
 # Changed 2026-08-28: FS-44 dropped "any", added mews/penthouse/townhouse.
+# FS-67: canonical value is "apartment" (matches the live Contacts property_types
+# checkbox and Listings hs_listing_type). Legacy "flat" is accepted at the API
+# boundary and mapped to "apartment" before the HubSpot write (see
+# _norm_property_types); "any" is treated as skip-predicate there.
 VALID_PROPERTY_TYPES: list[str] = [
     "house",
-    "flat",
+    "apartment",
     "maisonette",
     "mews",
     "penthouse",

@@ -248,12 +248,17 @@ def _norm_source(s: str) -> str:
     return v if v in VALID_SOURCE else "other"
 
 
+# FS-67: legacy API inputs mapped to canonical live values before the write.
+_PROPERTY_TYPE_ALIASES = {"flat": "apartment"}
+
+
 def _norm_property_types(types: List[str]) -> List[str]:
-    # "any" -> skip predicate (no property-type constraint stored / matched).
-    # PENDING — not formally confirmed.
+    # "any" -> skip predicate (no property-type constraint written / matched).
+    # PENDING owner confirmation (Olesya): treat "any" as skip vs expand to all types.
     if "any" in types:
         return []
-    return [t for t in types if t in VALID_PROPERTY_TYPES]
+    mapped = [_PROPERTY_TYPE_ALIASES.get(t, t) for t in types]
+    return [t for t in mapped if t in VALID_PROPERTY_TYPES]
 
 
 def _request_to_criteria(req: RegisterApplicantRequest) -> Dict[str, Any]:
