@@ -325,6 +325,44 @@
       msgs.scrollTop = msgs.scrollHeight;
     }
 
+    // Collapsed, safe preview of the composed welcome email. Built with
+    // textContent / createTextNode only (never innerHTML, never html_body) so
+    // subject/body values — the applicant's own name, listing addresses — can
+    // never inject markup. Container id/class match addMsg: #messages, .msg.bot.
+    function addWelcomePreview(draft) {
+      if (!draft || (!draft.subject && !draft.text_body)) return;
+      const msgs = document.getElementById('messages');
+
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+
+      const details = document.createElement('details');   // collapsed by default
+      const summary = document.createElement('summary');
+      summary.textContent = 'Welcome email preview (not sent)';
+      details.appendChild(summary);
+
+      if (draft.subject) {
+        const subj = document.createElement('div');
+        subj.style.margin = '6px 0';
+        const label = document.createElement('strong');
+        label.textContent = 'Subject: ';
+        subj.appendChild(label);
+        subj.appendChild(document.createTextNode(draft.subject));
+        details.appendChild(subj);
+      }
+
+      if (draft.text_body) {
+        const bodyEl = document.createElement('div');
+        bodyEl.style.whiteSpace = 'pre-wrap';   // keep the template's line breaks
+        bodyEl.textContent = draft.text_body;
+        details.appendChild(bodyEl);
+      }
+
+      div.appendChild(details);
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
     function fieldError(id, msg) {
       const el = document.getElementById(id);
       if (el) el.textContent = msg;
@@ -427,6 +465,7 @@
         const matchNote = n ? ` — ${n} suggested ${n === 1 ? 'match' : 'matches'}` : '';
         if (data.created) {
           addMsg(`✓ New applicant registered in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}`, 'success');
+          addWelcomePreview(data.welcome_draft);   // only for a newly created applicant
         } else {
           // Q6: existing applicant — NOT overwritten. Show what we already hold
           // vs what was just submitted; the differences are reported, not applied.
