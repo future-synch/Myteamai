@@ -37,6 +37,21 @@ Feature: Deterministic welcome email with matched listings (FS-57)
     When the applicant is registered
     Then the listing line reads "1. 7 Cedar Rise, £680,000"
 
+  Scenario: A float price and float bedroom count render as whole numbers
+    Given a matched listing with a float price and float bedrooms
+    When the applicant is registered
+    Then the listing line reads "1. 9 Fir Walk, £780,000, 2 bedrooms"
+
+  Scenario: A float one-bedroom count renders as the singular
+    Given a matched listing with a float one-bedroom count
+    When the applicant is registered
+    Then the listing line reads "1. 2 Elm Row, £640,000, 1 bedroom"
+
+  Scenario: A non-whole price does not crash and keeps its pence
+    Given a matched listing with a non-whole price
+    When the applicant is registered
+    Then the listing line reads "1. 4 Ash Close, £780,000.5, 2 bedrooms"
+
   # -------------------------------------------------------------------------
   # Search line — supplied parts only, pinned budget wording, never the band
   # -------------------------------------------------------------------------

@@ -228,6 +228,22 @@ def step_no_bed(ctx):
     _STATE["matches"] = [_match("7 Cedar Rise", 680_000, None, "PROP-NOBED")]
 
 
+@given("a matched listing with a float price and float bedrooms")
+def step_float_price_beds(ctx):
+    # Live HubSpot returns price_gbp/bedrooms as floats (780000.0, 2.0).
+    _STATE["matches"] = [_match("9 Fir Walk", 780_000.0, 2.0, "PROP-FLOAT")]
+
+
+@given("a matched listing with a float one-bedroom count")
+def step_float_one_bed(ctx):
+    _STATE["matches"] = [_match("2 Elm Row", 640_000.0, 1.0, "PROP-FLOAT1")]
+
+
+@given("a matched listing with a non-whole price")
+def step_non_whole_price(ctx):
+    _STATE["matches"] = [_match("4 Ash Close", 780_000.5, 2, "PROP-PENCE")]
+
+
 @given("a matched listing whose address contains \"<\" \"&\" and \">\"")
 def step_escape_listing(ctx):
     _STATE["matches"] = [_match("5 <Script> & Co", 800_000, 2, "PROP-ESC")]
