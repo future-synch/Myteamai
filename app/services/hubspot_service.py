@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -113,13 +114,57 @@ async def search_contacts(
         return r.json().get("results", [])
 
 
-# All applicant-related properties we read back on match/kyc lookups
+# ---------------------------------------------------------------------------
+# FS-67 read-path parsers / normalisers (importable; reused by FS-70).
+# Never raise — unknown/empty/None always return a safe default.
+# ---------------------------------------------------------------------------
+
+def _budget_ceiling(value: Optional[str]) -> Optional[int]:
+    """
+    Numeric upper budget limit (GBP) from a `budget` band:
+      up_to_Nm -> N * 1_000_000 ; ten_plus -> None ; unknown/empty/None -> None.
+    """
+    if not value:
+        return None
+    m = re.match(r"^up_to_(\d+)m$", str(value).strip().lower())
+    if m:
+        return int(m.group(1)) * 1_000_000
+    # PENDING owner confirmation: ten_plus has no numeric ceiling.
+    return None
+
+
+def _beds_minimum(value: Optional[str]) -> Optional[int]:
+    """
+    Floor bedroom count from a `beds_required` band:
+      N_plus -> N (upper bound unresolved on the schema, which is fine) ;
+      unknown/empty/None -> None.
+    """
+    if not value:
+        return None
+    m = re.match(r"^(\d+)_plus$", str(value).strip().lower())
+    return int(m.group(1)) if m else None
+
+
+def _split_multi(value: Optional[str]) -> List[str]:
+    """
+    Normalise a HubSpot multi-checkbox value (semicolon-separated string) to a
+    list. Empty string / None -> [].
+    """
+    if not value:
+        return []
+    return [v.strip() for v in str(value).split(";") if v.strip()]
+
+
+# Applicant properties read on match/kyc lookups.
+# Verified against Confluence test_2 snapshot 2026-09-10, NOT yet verified
+# against the demo portal. Post-FS-44 schema names. KYC props (kyc_status /
+# kyc_documents_outstanding) intentionally absent — moved to the Deal object
+# (item A, blocked until the Deals schema + associations exist).
 APPLICANT_READ_PROPS = [
     "firstname", "lastname", "email", "phone",
-    "applicant_budget_gbp", "applicant_bedrooms_min", "applicant_bedrooms_max",
-    "applicant_property_types", "applicant_financing", "applicant_preferred_channel",
-    "applicant_source", "applicant_must_have", "applicant_timeline_weeks",
-    "kyc_status", "kyc_documents_outstanding",
+    "type_of_customer", "applicant_status",
+    "budget", "beds_required", "property_types",
+    "financing_status", "source", "preferred_channel", "timeline",
 ]
 
 
@@ -151,25 +196,21 @@ async def list_applicant_contacts(
     min_bedrooms: Optional[int] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Return applicants (contacts with applicant_source set), optionally filtered."""
-    filters: List[Dict[str, Any]] = [
-        {"propertyName": "applicant_source", "operator": "HAS_PROPERTY"},
+    """
+    Return applicants: contacts where type_of_customer='applicant' OR budget is
+    set. FS-67: the old server-side numeric filters on applicant_budget_gbp /
+    applicant_bedrooms_min are gone — budget/beds_required are enum bands now,
+    not numeric, so max_budget/min_bedrooms cannot be filtered server-side. They
+    remain in the signature for compatibility; filter client-side on the parsed
+    values (_budget_ceiling/_beds_minimum) if needed.
+    """
+    # OR across filterGroups: applicant by type OR by having a budget band.
+    filter_groups = [
+        {"filters": [{"propertyName": "type_of_customer", "operator": "EQ", "value": "applicant"}]},
+        {"filters": [{"propertyName": "budget", "operator": "HAS_PROPERTY"}]},
     ]
-    if max_budget is not None:
-        filters.append({
-            "propertyName": "applicant_budget_gbp",
-            "operator":     "GTE",
-            "value":        max_budget,
-        })
-    if min_bedrooms is not None:
-        filters.append({
-            "propertyName": "applicant_bedrooms_min",
-            "operator":     "LTE",
-            "value":        min_bedrooms,
-        })
-
     return await search_contacts(
-        filter_groups=[{"filters": filters}],
+        filter_groups=filter_groups,
         properties=APPLICANT_READ_PROPS,
         limit=limit,
     )
@@ -237,14 +278,14 @@ async def get_listing_by_address(address: str, token: Optional[str] = None) -> O
         }
 
 
-APPLICANT_FULL_PROPS = APPLICANT_READ_PROPS + ["type_of_customer"]
+APPLICANT_FULL_PROPS = list(APPLICANT_READ_PROPS)  # type_of_customer already included
 
 
 async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Fetch every contact that is an applicant. An applicant is any contact where
-    type_of_customer='applicant' OR applicant_budget_gbp is set. Paginates
-    through HubSpot's cursor-based results (limit 100 per page).
+    type_of_customer='applicant' OR budget is set. Paginates through HubSpot's
+    cursor-based results (limit 100 per page).
     """
     if not (token or os.getenv("HUBSPOT_API_KEY")):
         return []
@@ -264,7 +305,7 @@ async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]
                 # Match on either signal — HubSpot search supports OR across filterGroups.
                 "filterGroups": [
                     {"filters": [{"propertyName": "type_of_customer", "operator": "EQ", "value": "applicant"}]},
-                    {"filters": [{"propertyName": "applicant_budget_gbp", "operator": "HAS_PROPERTY"}]},
+                    {"filters": [{"propertyName": "budget", "operator": "HAS_PROPERTY"}]},
                 ],
                 "properties": APPLICANT_FULL_PROPS,
                 "limit":      100,
@@ -286,15 +327,21 @@ async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]
                     "id":                        rec.get("id"),
                     "name":                      f"{p.get('firstname') or ''} {p.get('lastname') or ''}".strip(),
                     "email":                     p.get("email"),
-                    "budget_gbp":                p.get("applicant_budget_gbp"),
-                    "bedrooms_min":              p.get("applicant_bedrooms_min"),
-                    "bedrooms_max":              p.get("applicant_bedrooms_max"),
-                    "property_types":            p.get("applicant_property_types"),
-                    "financing":                 p.get("applicant_financing"),
-                    "must_have":                 p.get("applicant_must_have"),
-                    "timeline_weeks":            p.get("applicant_timeline_weeks"),
-                    "kyc_status":                p.get("kyc_status"),
-                    "kyc_documents_outstanding": p.get("kyc_documents_outstanding"),
+                    "budget_gbp":                _budget_ceiling(p.get("budget")),
+                    "bedrooms_min":              _beds_minimum(p.get("beds_required")),
+                    # NO clean new source (beds_required is floor-only) — reported.
+                    "bedrooms_max":              None,
+                    # Raw semicolon string kept so fn_match_applicants is untouched;
+                    # callers wanting a list use _split_multi().
+                    "property_types":            p.get("property_types"),
+                    "financing":                 p.get("financing_status"),
+                    # NO clean new source (narrowed into outside_space+parking) — reported.
+                    "must_have":                 None,
+                    # NO clean new source ('timeline' is a banded enum, not weeks) — reported.
+                    "timeline_weeks":            None,
+                    # KYC parked — moved to the Deal object (item A, blocked).
+                    "kyc_status":                None,
+                    "kyc_documents_outstanding": None,
                 })
 
             paging = body.get("paging", {}).get("next", {})
