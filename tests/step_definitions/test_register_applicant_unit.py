@@ -898,3 +898,24 @@ async def test_denylist_refuses_prod_even_when_dev_portal_id_is_prod(monkeypatch
     assert exc_info.value.code == "TENANT_PRODUCTION_REFUSED", exc_info.value.code
     # Deny-list refusal happens before any write is attempted.
     assert not client.any_create_attempted()
+
+
+async def test_unset_dev_portal_id_fails_closed(monkeypatch):
+    """
+    FS-67 fail-closed: when DEV_PORTAL_ID is unset (None), the guard refuses
+    EVERY portal as TENANT_UNRECOGNISED with a "not configured" message — no
+    production default silently allows writes. The deny-list still wins first.
+    """
+    import app.services.hubspot_registration as hr
+
+    # Simulate an unconfigured deploy (DEV_PORTAL_ID env unset).
+    monkeypatch.setattr(hr, "DEV_PORTAL_ID", None)
+
+    client = FakeHubspotClient(portal_id=148226118)  # any non-forbidden portal
+
+    with pytest.raises(RegistrationError) as exc_info:
+        await hr._verify_tenant(client)
+
+    assert exc_info.value.code == "TENANT_UNRECOGNISED", exc_info.value.code
+    assert "not configured" in str(exc_info.value).lower()
+    assert not client.any_create_attempted()

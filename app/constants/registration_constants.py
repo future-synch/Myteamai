@@ -140,7 +140,12 @@ ENUM_SETS: dict[str, list[str]] = {
 # HubSpot portal IDs — tenant safety guard
 # ---------------------------------------------------------------------------
 
-DEV_PORTAL_ID: int = int(os.getenv("DEV_PORTAL_ID") or "149305651")  # FutureSynch dev (writes allowed); default new tenant 149305651, override via env
+# FAIL CLOSED (FS-67): no production default. When DEV_PORTAL_ID is unset/empty
+# the tenant guard refuses every write (see _verify_tenant). Set it explicitly in
+# .env and on Render; it must agree with the portal HS_DEV_TOKEN / HUBSPOT_API_KEY
+# resolves to.
+_dev_portal_env = os.getenv("DEV_PORTAL_ID")
+DEV_PORTAL_ID: int | None = int(_dev_portal_env) if _dev_portal_env else None
 PROD_PORTAL_ID: int = 143653372   # Curtis Sloane production (FS-25, writes prohibited)
 
 # Deny-list checked FIRST in the tenant guard — never overridable by any env var

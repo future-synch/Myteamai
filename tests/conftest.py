@@ -15,6 +15,13 @@ os.environ.setdefault("ANTHROPIC_MODE", "mock")
 # FS-71: every automated test runs against the in-memory brochure source — no network.
 os.environ.setdefault("BROCHURE_LINK_SOURCE", "fake")
 
+# FS-67: production code no longer defaults DEV_PORTAL_ID — it fails closed when
+# unset. Provide a test dev portal here, at import time (before app.constants is
+# imported by any step-def module), so the offline tenant-guard scenarios bind
+# the fake client to a configured dev portal. Must be set module-level, not in a
+# fixture: DEV_PORTAL_ID is resolved once at constants-import time.
+os.environ.setdefault("DEV_PORTAL_ID", "148226118")
+
 
 # ---------------------------------------------------------------------------
 # FS-50 — Gherkin tag → pytest marker conversion
