@@ -25,105 +25,14 @@ TIMEOUT      = 15.0
 # Created idempotently on first boot (lifespan hook in app/main.py).
 # Group "contactinformation" is HubSpot's built-in default — always exists.
 # ---------------------------------------------------------------------------
-# NOTE: pre-amendment field names below (applicant_budget_gbp etc)
-# are the read vocabulary for fn_match_applicants and fn_kyc_status.
-# These will be renamed when those functions migrate in FS-16/FS-64.
-# Do not remove here — removing breaks test_m3_match and test_m3_kyc.
-
-_CUSTOM_PROPERTIES: List[Dict[str, Any]] = [
-    {
-        "name": "applicant_budget_gbp",
-        "label": "Applicant Budget (GBP)",
-        "description": "Maximum property budget in GBP",
-        "type": "number", "fieldType": "number",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "applicant_bedrooms_min",
-        "label": "Applicant Bedrooms (Min)",
-        "type": "number", "fieldType": "number",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "applicant_bedrooms_max",
-        "label": "Applicant Bedrooms (Max)",
-        "type": "number", "fieldType": "number",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "applicant_property_types",
-        "label": "Applicant Property Types",
-        "type": "enumeration", "fieldType": "checkbox",
-        "groupName": "contactinformation",
-        "options": [
-            {"label": "House",      "value": "house",      "displayOrder": 0},
-            {"label": "Flat",       "value": "flat",       "displayOrder": 1},
-            {"label": "Maisonette", "value": "maisonette", "displayOrder": 2},
-            {"label": "Any",        "value": "any",        "displayOrder": 3},
-        ],
-    },
-    {
-        "name": "applicant_financing",
-        "label": "Applicant Financing",
-        "type": "enumeration", "fieldType": "select",
-        "groupName": "contactinformation",
-        "options": [
-            {"label": "Cash",              "value": "cash",             "displayOrder": 0},
-            {"label": "Mortgage (AIP)",    "value": "mortgage_aip",     "displayOrder": 1},
-            {"label": "Mortgage (no AIP)", "value": "mortgage_no_aip",  "displayOrder": 2},
-            {"label": "Unknown",           "value": "unknown",          "displayOrder": 3},
-        ],
-    },
-    {
-        "name": "applicant_preferred_channel",
-        "label": "Applicant Preferred Channel",
-        "type": "enumeration", "fieldType": "select",
-        "groupName": "contactinformation",
-        "options": [
-            {"label": "Email",    "value": "email",    "displayOrder": 0},
-            {"label": "Phone",    "value": "phone",    "displayOrder": 1},
-            {"label": "WhatsApp", "value": "whatsapp", "displayOrder": 2},
-        ],
-    },
-    {
-        "name": "applicant_source",
-        "label": "Applicant Source",
-        "description": "Where the applicant came from (Rightmove, Zoopla, Referral, etc.)",
-        "type": "string", "fieldType": "text",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "applicant_must_have",
-        "label": "Applicant Must-Have",
-        "type": "string", "fieldType": "textarea",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "applicant_timeline_weeks",
-        "label": "Applicant Timeline (Weeks)",
-        "type": "number", "fieldType": "number",
-        "groupName": "contactinformation",
-    },
-    {
-        "name": "kyc_status",
-        "label": "KYC Status",
-        "type": "enumeration", "fieldType": "select",
-        "groupName": "contactinformation",
-        "options": [
-            {"label": "Complete",    "value": "complete",     "displayOrder": 0},
-            {"label": "In Progress", "value": "in_progress",  "displayOrder": 1},
-            {"label": "Outstanding", "value": "outstanding",  "displayOrder": 2},
-            {"label": "Not Started", "value": "not_started",  "displayOrder": 3},
-        ],
-    },
-    {
-        "name": "kyc_documents_outstanding",
-        "label": "KYC Documents Outstanding",
-        "description": "Semicolon-separated list of missing KYC documents",
-        "type": "string", "fieldType": "textarea",
-        "groupName": "contactinformation",
-    },
-]
+# FS-67: the dev/test tenant's Contacts schema is provisioned out-of-band from
+# the definitive Confluence schema ("Contacts schema definitive", page 74907651).
+# The app no longer bootstraps contact properties — doing so against the dev
+# tenant risked re-creating stale, pre-FS-44 applicant_*/kyc_* properties (now
+# deleted from the schema) and drifting option sets away from the source of
+# truth. ensure_custom_properties() is therefore a no-op (see below). This list
+# is intentionally empty; property definitions live in HubSpot, not in code.
+_CUSTOM_PROPERTIES: List[Dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------
@@ -150,37 +59,19 @@ class HubSpotError(Exception):
 
 async def ensure_custom_properties() -> Dict[str, int]:
     """
-    Create any missing custom contact properties. Idempotent — safe on every boot.
-    Returns counts: {"created": N, "existed": M, "failed": K}
+    No-op since FS-67. The dev/test tenant's Contacts schema is managed
+    out-of-band from the definitive Confluence schema (page 74907651); the app
+    must never create contact properties at startup — doing so previously
+    re-created stale pre-FS-44 applicant_*/kyc_* properties against the dev
+    tenant. Kept callable so the app/main.py lifespan hook stays harmless.
+
+    Performs NO network I/O. Returns {"created": 0, "existed": 0, "failed": 0}.
     """
-    created = existed = failed = 0
-
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        r = await client.get(
-            f"{HUBSPOT_BASE}/crm/v3/properties/contacts",
-            headers=_headers(),
-        )
-        r.raise_for_status()
-        existing_names = {p["name"] for p in r.json().get("results", [])}
-
-        for spec in _CUSTOM_PROPERTIES:
-            if spec["name"] in existing_names:
-                existed += 1
-                continue
-            try:
-                resp = await client.post(
-                    f"{HUBSPOT_BASE}/crm/v3/properties/contacts",
-                    headers=_headers(),
-                    json=spec,
-                )
-                resp.raise_for_status()
-                created += 1
-                log.info("HubSpot property created: %s", spec["name"])
-            except Exception as exc:
-                failed += 1
-                log.warning("Failed to create %s: %s", spec["name"], exc)
-
-    return {"created": created, "existed": existed, "failed": failed}
+    log.info(
+        "ensure_custom_properties: no-op (contact schema managed out-of-band per "
+        "Confluence page 74907651); no properties created on startup."
+    )
+    return {"created": 0, "existed": 0, "failed": 0}
 
 
 # ---------------------------------------------------------------------------

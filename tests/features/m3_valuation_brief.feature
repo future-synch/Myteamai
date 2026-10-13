@@ -24,7 +24,7 @@ Feature: Valuation Brief — fn_valuation_brief
       | field            | value           |
       | property_address | 14 Ladbroke Road |
       | postcode         | W11 3NR         |
-      | property_type    | flat            |
+      | property_type    | apartment       |
       | bedrooms         | 2               |
     Then the response status is "ok"
     And the brief contains at least 3 comparables
