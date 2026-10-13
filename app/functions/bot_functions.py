@@ -321,12 +321,21 @@ def _welcome_search_parts(req: RegisterApplicantRequest) -> List[str]:
     return parts
 
 
+def _whole(value):
+    """Drop a float's trailing .0 when it is whole (780000.0 -> 780000, 2.0 -> 2);
+    leave non-whole floats (780000.5) and non-numbers untouched. Live HubSpot
+    returns price_gbp/bedrooms as floats."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
 def _listing_content(match: dict) -> str:
     """One listing, by an EXPLICIT allowlist: address, price, bedrooms only.
     Nothing else on the match object (score, id, reason, notes) is read."""
     address = match.get("address")
-    price = match.get("price_gbp")
-    bedrooms = match.get("bedrooms")
+    price = _whole(match.get("price_gbp"))
+    bedrooms = _whole(match.get("bedrooms"))
     line = f"{address}, £{price:,}"
     if bedrooms is not None:
         line += f", {bedrooms} bedroom{'' if bedrooms == 1 else 's'}"
