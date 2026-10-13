@@ -13,6 +13,13 @@ import pytest
 # Force mock Claude before app modules are imported by step def files.
 os.environ.setdefault("ANTHROPIC_MODE", "mock")
 
+# FS-67: production code no longer defaults DEV_PORTAL_ID — it fails closed when
+# unset. Provide a test dev portal here, at import time (before app.constants is
+# imported by any step-def module), so the offline tenant-guard scenarios bind
+# the fake client to a configured dev portal. Must be set module-level, not in a
+# fixture: DEV_PORTAL_ID is resolved once at constants-import time.
+os.environ.setdefault("DEV_PORTAL_ID", "148226118")
+
 
 # ---------------------------------------------------------------------------
 # FS-50 — Gherkin tag → pytest marker conversion

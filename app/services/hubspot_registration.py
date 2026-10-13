@@ -258,8 +258,9 @@ async def _verify_tenant(client: HubspotClient) -> int:
 
     Guard order (deny-list first, never overridable by any env var):
       (1) portal in FORBIDDEN_PORTAL_IDS -> TENANT_PRODUCTION_REFUSED
-      (2) portal == DEV_PORTAL_ID        -> allow
-      (3) otherwise                      -> TENANT_UNRECOGNISED
+      (2) DEV_PORTAL_ID unset (None)     -> TENANT_UNRECOGNISED (fail closed)
+      (3) portal == DEV_PORTAL_ID        -> allow
+      (4) otherwise                      -> TENANT_UNRECOGNISED
     """
     try:
         info = await client.get_portal_info()
@@ -277,10 +278,17 @@ async def _verify_tenant(client: HubspotClient) -> int:
             f"prohibited under FS-25 — deny-list, not overridable by any env var.",
             code="TENANT_PRODUCTION_REFUSED",
         )
-    # (2) Allow the configured dev tenant.
+    # (2) Fail closed: with no configured dev tenant, refuse every write.
+    if DEV_PORTAL_ID is None:
+        raise RegistrationError(
+            "DEV_PORTAL_ID not configured — refusing all writes (fail-closed). "
+            "Set DEV_PORTAL_ID to the portal your token resolves to.",
+            code="TENANT_UNRECOGNISED",
+        )
+    # (3) Allow the configured dev tenant.
     if portal_id == DEV_PORTAL_ID:
         return portal_id
-    # (3) Anything else is unrecognised.
+    # (4) Anything else is unrecognised.
     raise RegistrationError(
         f"Writes to unrecognised portal {portal_id} are refused. "
         f"Only DEV_PORTAL_ID={DEV_PORTAL_ID} is allowed.",

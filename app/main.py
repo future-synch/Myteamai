@@ -53,6 +53,16 @@ async def lifespan(app: FastAPI):
             log.warning("HubSpot bootstrap skipped: %s", exc)
     else:
         log.warning("HUBSPOT_API_KEY not set — skipping property bootstrap")
+
+    # FS-67: surface the fail-closed tenant guard state at startup.
+    from app.constants.registration_constants import DEV_PORTAL_ID
+    if DEV_PORTAL_ID is None:
+        log.warning(
+            "DEV_PORTAL_ID not configured — HubSpot tenant guard will REFUSE all "
+            "writes (fail-closed). Set DEV_PORTAL_ID in the environment."
+        )
+    else:
+        log.info("Tenant guard active: DEV_PORTAL_ID=%s", DEV_PORTAL_ID)
     yield
     # Shutdown — nothing to clean up
 
