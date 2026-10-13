@@ -315,7 +315,8 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
     # ---- Step a: register in HubSpot — ALWAYS. Validation or step-a failure
     # returns early; steps b/c/d never run. -------------------------------
     try:
-        applicant_id = await register_applicant_in_hubspot(criteria, build_hubspot_client())
+        reg = await register_applicant_in_hubspot(criteria, build_hubspot_client())
+        applicant_id, created = reg.contact_id, reg.created
     except RegistrationError as exc:
         errors.append(exc.code or "HUBSPOT_SYNC_FAIL")
         return RegisterApplicantResponse(
@@ -367,6 +368,7 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
     return RegisterApplicantResponse(
         status="ok",
         applicant_id=applicant_id,
+        created=created,
         first_matches=first_matches,
         welcome_draft=welcome_draft,
         draft_ref=draft_ref,

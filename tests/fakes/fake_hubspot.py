@@ -35,9 +35,22 @@ class FakeHubspotClient:
     def __init__(self, portal_id: int = DEV_PORTAL_ID):
         self.portal_id: int = portal_id
         self._contacts: dict[str, dict[str, Any]] = {}
+        self._by_email: dict[str, str] = {}
         self._next_id: int = 1000
         self._error_queue: list[tuple] = []
         self.calls: list[dict[str, Any]] = []
+
+    def seed_contact(self, email: str, properties: dict[str, Any] | None = None,
+                     contact_id: str | None = None) -> str:
+        """Test-only: pre-load an existing contact so a later create with the
+        same email hits the 409 duplicate path."""
+        cid = contact_id or str(self._next_id)
+        self._next_id += 1
+        rec = dict(properties or {})
+        rec["email"] = email
+        self._contacts[cid] = rec
+        self._by_email[email] = cid
+        return cid
 
     # ---- Error mode configuration (test-only) --------------------------
 
@@ -78,11 +91,31 @@ class FakeHubspotClient:
                 )
             raise HubspotError(code, f"simulated {code}", retry_after=retry_after)
 
+        # Duplicate email -> 409 Conflict (HubSpot dedupes on email).
+        email = properties.get("email")
+        if email and email in self._by_email:
+            raise HubspotError(409, f"Contact already exists for email {email}")
+
         # Success path — assign an id, store the properties byte-for-byte
         contact_id = str(self._next_id)
         self._next_id += 1
         self._contacts[contact_id] = dict(properties)
+        if email:
+            self._by_email[email] = contact_id
         return {"id": contact_id, "properties": dict(properties)}
+
+    async def update_contact_by_email(self, email: str, properties: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append({
+            "endpoint":   "update_contact_by_email",
+            "email":      email,
+            "properties": dict(properties),
+        })
+        contact_id = self._by_email.get(email)
+        if contact_id is None:
+            raise HubspotError(404, f"No contact for email {email}")
+        # Merge: only the provided keys are written; existing values are kept.
+        self._contacts[contact_id].update(properties)
+        return {"id": contact_id, "properties": dict(self._contacts[contact_id])}
 
     # ---- Inspection helpers (test-only) --------------------------------
 

@@ -169,6 +169,9 @@ class RegisterApplicantResponse(BaseModel):
     # removed — KYC is no longer part of registration output (FS-55).
     status: str
     applicant_id: Optional[str] = None
+    # FS §6: True = a new contact was created; False = an existing contact
+    # (matched by email) was updated. Lets the UI say which happened.
+    created: bool = False
     first_matches: List[dict] = Field(default_factory=list)
     welcome_draft: Optional[WelcomeDraft] = None
     draft_ref: Optional[DraftRef] = None

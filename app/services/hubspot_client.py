@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -59,6 +60,28 @@ class HubSpotClient:
             r = await c.post(
                 f"{HUBSPOT_BASE}/crm/v3/objects/contacts",
                 headers=self._headers,
+                json={"properties": properties},
+            )
+            if r.status_code >= 400:
+                raise HubspotError(
+                    r.status_code,
+                    r.text,
+                    missing_property=_extract_missing_property(r.text),
+                    retry_after=_extract_retry_after(r.headers),
+                )
+            return r.json()
+
+    async def update_contact_by_email(self, email: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing contact matched by its unique email, via HubSpot's
+        update-by-unique-property: PATCH /crm/v3/objects/contacts/{email}?idProperty=email.
+        One call, no search round-trip, no parsing the id out of an error string.
+        """
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.patch(
+                f"{HUBSPOT_BASE}/crm/v3/objects/contacts/{quote(email, safe='')}",
+                headers=self._headers,
+                params={"idProperty": "email"},
                 json={"properties": properties},
             )
             if r.status_code >= 400:

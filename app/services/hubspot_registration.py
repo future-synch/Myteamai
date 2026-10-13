@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Protocol
 
@@ -106,6 +107,16 @@ class HubspotTimeoutError(HubspotError):
 class HubspotClient(Protocol):
     async def get_portal_info(self) -> dict[str, Any]: ...
     async def create_contact(self, properties: dict[str, Any]) -> dict[str, Any]: ...
+    async def update_contact_by_email(self, email: str, properties: dict[str, Any]) -> dict[str, Any]: ...
+
+
+@dataclass
+class RegistrationResult:
+    """Outcome of register_applicant_in_hubspot(): the HubSpot contact id plus
+    whether it was newly created (True) or an existing contact updated (False,
+    the FS duplicate-email upsert path)."""
+    contact_id: str
+    created: bool
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +308,54 @@ async def _verify_tenant(client: HubspotClient) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Duplicate-email upsert (§6, Q6 resolved: update existing, don't duplicate)
+# ---------------------------------------------------------------------------
+
+_UPDATE_SKIP_FIELDS = {"registration_date"}
+
+
+def _merge_properties(properties: dict[str, Any]) -> dict[str, Any]:
+    """
+    PATCH payload for updating an EXISTING contact: only the fields present with
+    a non-empty value in this submission. A blank/absent optional (e.g. a left-
+    empty Timeline on re-registration) means "not specified now" — it must NOT
+    clear the client's existing CRM value. System-only fields (registration_date)
+    are never rewritten on update.
+    """
+    return {
+        k: v for k, v in properties.items()
+        if k not in _UPDATE_SKIP_FIELDS and v not in (None, "", [])
+    }
+
+
+async def _upsert_by_email(
+    client: HubspotClient,
+    properties: dict[str, Any],
+    original_criteria: dict[str, Any],
+) -> str:
+    """Update the existing contact (matched by email) and return its id. Used
+    when create hits 409. Merge semantics via _merge_properties."""
+    email = properties.get("email") or original_criteria.get("email")
+    try:
+        result = await client.update_contact_by_email(email, _merge_properties(properties))
+    except HubspotError as exc:
+        raise RegistrationError(
+            f"HubSpot reported the contact exists but the update failed "
+            f"({exc.status_code}): {exc}",
+            code="HUBSPOT_SYNC_FAIL",
+            payload=original_criteria,
+        )
+    contact_id = str(result.get("id", "")) if isinstance(result, dict) else ""
+    if not contact_id:
+        raise RegistrationError(
+            "HubSpot update returned no contact id",
+            code="HUBSPOT_SYNC_FAIL",
+            payload=original_criteria,
+        )
+    return contact_id
+
+
+# ---------------------------------------------------------------------------
 # HubSpot create with retry (§7)
 # ---------------------------------------------------------------------------
 
@@ -304,7 +363,7 @@ async def _create_with_retry(
     client: HubspotClient,
     properties: dict[str, Any],
     original_criteria: dict[str, Any],
-) -> str:
+) -> RegistrationResult:
     """
     §7 retry policy:
       - 5xx           -> retry once, then HUBSPOT_SYNC_FAIL
@@ -339,6 +398,13 @@ async def _create_with_retry(
                     code="HUBSPOT_MISSING_PROPERTY",
                     payload=original_criteria,
                 )
+            # 409 Conflict — the email already exists (HubSpot dedupes on email).
+            # Not a failure: update the existing contact by email (merge only the
+            # fields present in this submission) and return it as an UPDATE.
+            # Checked before the generic 4xx branch below.
+            if exc.status_code == 409:
+                existing_id = await _upsert_by_email(client, properties, original_criteria)
+                return RegistrationResult(contact_id=existing_id, created=False)
             # 4xx (non-429) — no retry
             if 400 <= exc.status_code < 500 and exc.status_code != 429:
                 raise RegistrationError(
@@ -382,7 +448,7 @@ async def _create_with_retry(
                 code="HUBSPOT_SYNC_FAIL",
                 payload=original_criteria,
             )
-        return contact_id
+        return RegistrationResult(contact_id=contact_id, created=True)
 
     # Defensive — the loop should always return or raise inside
     raise RegistrationError(
@@ -399,7 +465,7 @@ async def _create_with_retry(
 async def register_applicant_in_hubspot(
     criteria: dict[str, Any],
     client: HubspotClient,
-) -> str:
+) -> RegistrationResult:
     """
     Registration half of fn_register_applicant() per TS Amendment A-2 rev 3.
 
@@ -409,7 +475,8 @@ async def register_applicant_in_hubspot(
                 integration suite)
 
     Returns:
-      HubSpot contact ID as a non-empty string.
+      RegistrationResult(contact_id, created) — created=True for a new contact,
+      False when an existing contact (same email) was updated instead (§6).
 
     Raises:
       RegistrationError with .code, .fields, and .payload attributes on
@@ -429,7 +496,6 @@ async def register_applicant_in_hubspot(
     # §5: map payload to HubSpot properties (byte-for-byte, no coercion)
     properties = _map_to_hubspot_properties(criteria)
 
-    # §7: create with retry policy
-    contact_id = await _create_with_retry(client, properties, dict(criteria))
-
-    return contact_id
+    # §7: create with retry policy (returns RegistrationResult; created=False
+    # when a 409 duplicate-email was upserted onto the existing contact).
+    return await _create_with_retry(client, properties, dict(criteria))
