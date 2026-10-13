@@ -210,15 +210,13 @@ Feature: Register an applicant in HubSpot
     And a registration_date supplied in the payload is ignored
 
   # =====================================================
-  # SECTION 6: Duplicate handling  (Q6 resolved — upsert)
+  # SECTION 6: Duplicate handling  (Q6: preserve, report the diff)
   # =====================================================
-  # A duplicate email is not a failure: HubSpot dedupes on email, so the
-  # existing contact is UPDATED and its id returned, with created=False so the
-  # caller can distinguish an update from a new registration. Update is a MERGE
-  # — only fields present in the submission are written; blank/absent optionals
-  # never clear existing CRM values.
+  # A duplicate email is not a failure and is NOT overwritten: the existing
+  # contact is found and returned (created=False); the differences between the
+  # submission and what HubSpot holds are reported to the caller, not applied.
 
-  Scenario: Registering an existing email updates instead of duplicating
+  Scenario: Registering an existing email address does not create a duplicate
     Given a contact already exists with email "sarah.chen@example.com"
     When the applicant is registered with that email address
     Then no duplicate contact is created
@@ -227,13 +225,14 @@ Feature: Register an applicant in HubSpot
   Scenario: The caller is told the contact already existed
     Given a contact already exists with email "sarah.chen@example.com"
     When the applicant is registered with that email address
-    Then the result indicates the contact was updated, not created
+    Then the return value indicates the contact was pre-existing
+    And the agent can be told, rather than being shown a silent success
 
-  Scenario: A blank field on update does not clear the existing value
-    Given a contact already exists with email "sarah.chen@example.com" and property types already recorded
-    When the applicant is registered with that email address, a new budget, and no property types
-    Then the existing property types are preserved
-    And the new budget is written to the contact
+  Scenario: Registering an existing applicant does not overwrite their criteria
+    Given a contact already exists with email "sarah.chen@example.com" and a budget already recorded
+    When the applicant is registered with a different budget
+    Then the existing budget is not overwritten
+    And the difference is reported to the caller
 
   # =====================================================
   # SECTION 7: HubSpot failure handling

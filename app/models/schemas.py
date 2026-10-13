@@ -170,8 +170,11 @@ class RegisterApplicantResponse(BaseModel):
     status: str
     applicant_id: Optional[str] = None
     # FS §6: True = a new contact was created; False = an existing contact
-    # (matched by email) was updated. Lets the UI say which happened.
+    # (matched by email) was found and NOT modified. On the existing path `diff`
+    # reports the fields whose submitted value differs from what HubSpot holds
+    # ({field: {"submitted", "existing"}}) — shown to the agent, not applied.
     created: bool = False
+    diff: Optional[dict] = None
     first_matches: List[dict] = Field(default_factory=list)
     welcome_draft: Optional[WelcomeDraft] = None
     draft_ref: Optional[DraftRef] = None

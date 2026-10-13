@@ -107,16 +107,25 @@ class HubspotTimeoutError(HubspotError):
 class HubspotClient(Protocol):
     async def get_portal_info(self) -> dict[str, Any]: ...
     async def create_contact(self, properties: dict[str, Any]) -> dict[str, Any]: ...
-    async def update_contact_by_email(self, email: str, properties: dict[str, Any]) -> dict[str, Any]: ...
+    async def search_contact_by_email(
+        self, email: str, properties: list[str]
+    ) -> dict[str, Any] | None: ...
 
 
 @dataclass
 class RegistrationResult:
-    """Outcome of register_applicant_in_hubspot(): the HubSpot contact id plus
-    whether it was newly created (True) or an existing contact updated (False,
-    the FS duplicate-email upsert path)."""
+    """Outcome of register_applicant_in_hubspot().
+
+    created=True  -> a new contact was created.
+    created=False -> an existing contact (matched by email) was found. Per Q6 the
+                     existing applicant's criteria are NOT overwritten; `diff`
+                     reports which submitted fields differ from what HubSpot holds
+                     ({field: {"submitted": ..., "existing": ...}}) so the agent
+                     can be shown the difference rather than it being applied.
+    """
     contact_id: str
     created: bool
+    diff: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -308,51 +317,55 @@ async def _verify_tenant(client: HubspotClient) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Duplicate-email upsert (§6, Q6 resolved: update existing, don't duplicate)
+# Duplicate-email handling (§6, Q6: PRESERVE existing — never overwrite; report
+# the diff to the caller, do not apply it).
 # ---------------------------------------------------------------------------
 
-_UPDATE_SKIP_FIELDS = {"registration_date"}
+_DIFF_SKIP_FIELDS = {"registration_date"}  # system-set; not a client-visible diff
 
 
-def _merge_properties(properties: dict[str, Any]) -> dict[str, Any]:
+def _compute_diff(submitted: dict[str, Any], existing: dict[str, Any]) -> dict[str, Any]:
     """
-    PATCH payload for updating an EXISTING contact: only the fields present with
-    a non-empty value in this submission. A blank/absent optional (e.g. a left-
-    empty Timeline on re-registration) means "not specified now" — it must NOT
-    clear the client's existing CRM value. System-only fields (registration_date)
-    are never rewritten on update.
+    Report fields whose submitted (non-empty) value differs from what HubSpot
+    currently holds, as {field: {"submitted": ..., "existing": ...}}. Nothing is
+    written — this is for the agent to see. Blank/absent submission fields ("not
+    specified now") and system-only fields are not diffed.
     """
-    return {
-        k: v for k, v in properties.items()
-        if k not in _UPDATE_SKIP_FIELDS and v not in (None, "", [])
-    }
+    diff: dict[str, Any] = {}
+    for key, value in submitted.items():
+        if key in _DIFF_SKIP_FIELDS or value in (None, "", []):
+            continue
+        current = existing.get(key)
+        if str(current) != str(value):
+            diff[key] = {"submitted": value, "existing": current}
+    return diff
 
 
-async def _upsert_by_email(
+async def _existing_contact_diff(
     client: HubspotClient,
     properties: dict[str, Any],
     original_criteria: dict[str, Any],
-) -> str:
-    """Update the existing contact (matched by email) and return its id. Used
-    when create hits 409. Merge semantics via _merge_properties."""
+) -> tuple[str, dict[str, Any]]:
+    """On a 409 (email already exists): look up the existing contact by email and
+    compute the diff. Read-only — the existing applicant's criteria are NOT
+    overwritten (Q6). Returns (existing_id, diff)."""
     email = properties.get("email") or original_criteria.get("email")
-    try:
-        result = await client.update_contact_by_email(email, _merge_properties(properties))
-    except HubspotError as exc:
+    existing = await client.search_contact_by_email(email, list(properties.keys()))
+    if not existing:
         raise RegistrationError(
-            f"HubSpot reported the contact exists but the update failed "
-            f"({exc.status_code}): {exc}",
+            "HubSpot reported the contact exists but it could not be found by email",
             code="HUBSPOT_SYNC_FAIL",
             payload=original_criteria,
         )
-    contact_id = str(result.get("id", "")) if isinstance(result, dict) else ""
-    if not contact_id:
+    existing_id = str(existing.get("id", "")) if isinstance(existing, dict) else ""
+    existing_props = existing.get("properties", {}) if isinstance(existing, dict) else {}
+    if not existing_id:
         raise RegistrationError(
-            "HubSpot update returned no contact id",
+            "HubSpot search returned no contact id for the existing email",
             code="HUBSPOT_SYNC_FAIL",
             payload=original_criteria,
         )
-    return contact_id
+    return existing_id, _compute_diff(properties, existing_props)
 
 
 # ---------------------------------------------------------------------------
@@ -399,12 +412,14 @@ async def _create_with_retry(
                     payload=original_criteria,
                 )
             # 409 Conflict — the email already exists (HubSpot dedupes on email).
-            # Not a failure: update the existing contact by email (merge only the
-            # fields present in this submission) and return it as an UPDATE.
+            # Not a failure, and NOT an overwrite (Q6): look up the existing
+            # contact, compute the diff, and return it unchanged with created=False.
             # Checked before the generic 4xx branch below.
             if exc.status_code == 409:
-                existing_id = await _upsert_by_email(client, properties, original_criteria)
-                return RegistrationResult(contact_id=existing_id, created=False)
+                existing_id, diff = await _existing_contact_diff(
+                    client, properties, original_criteria
+                )
+                return RegistrationResult(contact_id=existing_id, created=False, diff=diff)
             # 4xx (non-429) — no retry
             if 400 <= exc.status_code < 500 and exc.status_code != 429:
                 raise RegistrationError(
@@ -475,8 +490,10 @@ async def register_applicant_in_hubspot(
                 integration suite)
 
     Returns:
-      RegistrationResult(contact_id, created) — created=True for a new contact,
-      False when an existing contact (same email) was updated instead (§6).
+      RegistrationResult(contact_id, created, diff) — created=True for a new
+      contact; created=False when an existing contact (same email) was found. Per
+      Q6 the existing contact is NOT modified; `diff` reports the fields whose
+      submitted value differs from what HubSpot holds (§6).
 
     Raises:
       RegistrationError with .code, .fields, and .payload attributes on
@@ -497,5 +514,6 @@ async def register_applicant_in_hubspot(
     properties = _map_to_hubspot_properties(criteria)
 
     # §7: create with retry policy (returns RegistrationResult; created=False
-    # when a 409 duplicate-email was upserted onto the existing contact).
+    # when a 409 duplicate-email was found — the existing contact is NOT
+    # modified, and the diff is reported to the caller instead).
     return await _create_with_retry(client, properties, dict(criteria))

@@ -316,7 +316,7 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
     # returns early; steps b/c/d never run. -------------------------------
     try:
         reg = await register_applicant_in_hubspot(criteria, build_hubspot_client())
-        applicant_id, created = reg.contact_id, reg.created
+        applicant_id, created, diff = reg.contact_id, reg.created, reg.diff
     except RegistrationError as exc:
         errors.append(exc.code or "HUBSPOT_SYNC_FAIL")
         return RegisterApplicantResponse(
@@ -369,6 +369,7 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
         status="ok",
         applicant_id=applicant_id,
         created=created,
+        diff=diff,
         first_matches=first_matches,
         welcome_draft=welcome_draft,
         draft_ref=draft_ref,

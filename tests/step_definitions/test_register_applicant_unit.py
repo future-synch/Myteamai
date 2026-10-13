@@ -930,7 +930,7 @@ async def test_unset_dev_portal_id_fails_closed(monkeypatch):
 
 
 # ============================================================================
-# SECTION 6: Duplicate handling (Q6 resolved — upsert)
+# SECTION 6: Duplicate handling (Q6: preserve existing, report the diff)
 # ============================================================================
 
 @given(parsers.parse('a contact already exists with email "{email}"'))
@@ -939,10 +939,11 @@ def step_seed_existing(ctx, email):
     ctx.existing_id = ctx.client.seed_contact(email)
 
 
-@given(parsers.parse('a contact already exists with email "{email}" and property types already recorded'))
-def step_seed_existing_with_prop_types(ctx, email):
+@given(parsers.parse('a contact already exists with email "{email}" and a budget already recorded'))
+def step_seed_existing_with_budget(ctx, email):
     ctx.existing_email = email
-    ctx.existing_id = ctx.client.seed_contact(email, {"property_types": "maisonette"})
+    ctx.existing_budget = VALID_BUDGET[0]
+    ctx.existing_id = ctx.client.seed_contact(email, {"budget": ctx.existing_budget})
 
 
 @when("the applicant is registered with that email address")
@@ -952,19 +953,18 @@ def step_register_same_email(ctx):
     _register(ctx)
 
 
-@when("the applicant is registered with that email address, a new budget, and no property types")
-def step_register_merge(ctx):
+@when("the applicant is registered with a different budget")
+def step_register_different_budget(ctx):
     ctx.payload = _valid_payload()
     ctx.payload["email"] = ctx.existing_email
-    ctx.payload["property_types"] = []            # blank multi-value -> not written on update
-    ctx.updated_budget = VALID_BUDGET[1]          # different from the default
-    ctx.payload["budget"] = ctx.updated_budget
+    ctx.new_budget = VALID_BUDGET[1]              # different from the seeded budget
+    ctx.payload["budget"] = ctx.new_budget
     _register(ctx)
 
 
 @then("no duplicate contact is created")
 def step_no_duplicate(ctx):
-    # Only the one seeded contact exists — the create 409'd, no new row stored.
+    # Only the seeded contact exists — the create 409'd and NOTHING was written.
     assert len(ctx.client.contacts) == 1, ctx.client.contacts
 
 
@@ -974,19 +974,27 @@ def step_existing_id_returned(ctx):
     assert _result_id(ctx) == ctx.existing_id
 
 
-@then("the result indicates the contact was updated, not created")
-def step_result_updated_not_created(ctx):
+@then("the return value indicates the contact was pre-existing")
+def step_result_preexisting(ctx):
     assert ctx.error is None, ctx.error
     assert ctx.result is not None and ctx.result.created is False
 
 
-@then("the existing property types are preserved")
-def step_property_types_preserved(ctx):
-    stored = ctx.client.contacts[ctx.existing_id]
-    assert stored.get("property_types") == "maisonette", stored
+@then("the agent can be told, rather than being shown a silent success")
+def step_not_silent(ctx):
+    # created=False is the signal the agent is shown — not a silent create.
+    assert ctx.result is not None and ctx.result.created is False
 
 
-@then("the new budget is written to the contact")
-def step_budget_updated(ctx):
+@then("the existing budget is not overwritten")
+def step_budget_not_overwritten(ctx):
     stored = ctx.client.contacts[ctx.existing_id]
-    assert stored.get("budget") == ctx.updated_budget, stored
+    assert stored.get("budget") == ctx.existing_budget, stored
+
+
+@then("the difference is reported to the caller")
+def step_difference_reported(ctx):
+    diff = ctx.result.diff or {}
+    assert "budget" in diff, diff
+    assert diff["budget"]["submitted"] == ctx.new_budget
+    assert diff["budget"]["existing"] == ctx.existing_budget
