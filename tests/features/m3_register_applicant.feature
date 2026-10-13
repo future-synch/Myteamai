@@ -35,8 +35,8 @@ Feature: Applicant Registration — fn_register_applicant (A-2 rev 5)
     And a welcome draft is returned with subject, html_body and text_body
     And draft_ref has transport, draft_id and mailbox
 
-  # --- Matching is stubbed until FS-64 + FS-63 land ---
-  Scenario: Matching returns no listings until the engine lands
+  # --- Direction-1 matching (FS-70): none available in this run ---
+  Scenario: Matching returns no listings when none are available
     When the agent registers a cash buyer applicant
     Then the response status is "ok"
     And first_matches is empty

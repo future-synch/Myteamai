@@ -28,7 +28,7 @@ from app.services.hubspot_registration import (
     register_applicant_in_hubspot,
 )
 from app.services.hubspot_client import build_hubspot_client
-from app.services.matching_stub import find_matching_listings
+from app.services.matching import find_matching_listings
 from app.services.transports.gmail import create_draft
 
 log = logging.getLogger(__name__)
@@ -335,8 +335,8 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
     # ---- Step b: matching — ALWAYS; isolated. --------------------------
     first_matches: List[dict] = []
     try:
-        # STUB — returns [] until FS-64 + FS-63 resolved. Real engine: FS-16.
-        first_matches = find_matching_listings(criteria, limit=3)
+        # FS-70: Direction-1 deterministic engine (fetches listings live).
+        first_matches = await find_matching_listings(criteria, limit=3)
     except Exception as exc:
         log.warning("Step b (matching) failed: %s", exc)
         errors.append(f"MATCH_FAILED: {exc}")

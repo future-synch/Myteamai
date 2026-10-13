@@ -13,6 +13,7 @@ from pytest_bdd import scenarios, given, when, then, parsers
 from fastapi.testclient import TestClient
 from app.main import app
 import app.functions.bot_functions as bot_functions
+from app.services import hubspot_service
 
 scenarios("../features/m3_register_applicant.feature")
 client = TestClient(app)
@@ -26,6 +27,12 @@ def mock_register(monkeypatch):
     async def fake_register(criteria, hs_client):
         return str(next(_id_seq))
     monkeypatch.setattr(bot_functions, "register_applicant_in_hubspot", fake_register)
+
+    # FS-70: step b now fetches listings live via find_matching_listings ->
+    # hubspot_service.get_all_listings. Mock it so the endpoint tests stay offline.
+    async def fake_get_all_listings(*args, **kwargs):
+        return []
+    monkeypatch.setattr(hubspot_service, "get_all_listings", fake_get_all_listings)
 
 
 class Ctx:
