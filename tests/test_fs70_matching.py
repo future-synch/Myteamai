@@ -240,3 +240,65 @@ async def test_get_all_listings_filter_and_offmarket(monkeypatch):
     # normalised shape: neighborhood comes from area (C2)
     l1 = next(r for r in out if r["id"] == "L1")
     assert l1["price_gbp"] == "2000000" and l1["address"] == "1 A St" and l1["neighborhood"] == "chelsea"
+
+
+class _PagingClient:
+    """Fake httpx.AsyncClient that returns a sequence of pages across posts and
+    records every request payload."""
+
+    def __init__(self, pages):
+        self._pages = pages
+        self._i = 0
+        self.payloads = []
+
+    def __call__(self, *a, **k):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, headers=None, json=None):
+        self.payloads.append(json)
+        body = self._pages[self._i]
+        self._i += 1
+        return _FakeResp(body)
+
+
+def _prop(hs_price, off_market, addr):
+    return {"hs_price": hs_price, "hs_bedrooms": "3", "hs_listing_type": "house",
+            "hs_address_1": addr, "listing_status": "available_for_sale",
+            "off_market": off_market, "area": "chelsea"}
+
+
+async def test_get_all_listings_paginates_and_merges_pages(monkeypatch):
+    # Page 1 hands back a next cursor; page 2 has none (stop). off_market records
+    # appear on BOTH pages and must be skipped on both.
+    page1 = {
+        "results": [
+            {"id": "P1a", "properties": _prop("2000000", "false", "1 A")},   # keep
+            {"id": "P1b", "properties": _prop("2100000", "true", "2 B")},    # off-market -> skip
+        ],
+        "paging": {"next": {"after": "CURSOR-123"}},
+    }
+    page2 = {
+        "results": [
+            {"id": "P2a", "properties": _prop("2200000", "", "3 C")},        # keep (empty off_market)
+            {"id": "P2b", "properties": _prop("2300000", "true", "4 D")},    # off-market -> skip
+        ],
+        # no "paging" -> loop stops after this page
+    }
+    client = _PagingClient([page1, page2])
+    monkeypatch.setattr(hs.httpx, "AsyncClient", client)
+
+    out = await hs.get_all_listings(token="dummy-dev-token")
+
+    # both pages merged; off_market skipped on page 1 AND page 2
+    assert {r["id"] for r in out} == {"P1a", "P2a"}
+    # exactly two requests were made
+    assert len(client.payloads) == 2
+    # first request has no cursor; second carries the page-1 `after`
+    assert "after" not in client.payloads[0]
+    assert client.payloads[1].get("after") == "CURSOR-123"
