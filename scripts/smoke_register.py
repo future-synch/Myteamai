@@ -73,6 +73,14 @@ def main() -> int:
         f"SMOKE OK: logged in as {email} and registered an applicant "
         f"(applicant_id={body.get('applicant_id')})."
     )
+
+    matches = body.get("first_matches") or []
+    print(f"first_matches: {len(matches)}")
+    for i, m in enumerate(matches, start=1):
+        print(
+            f"  {i}. {m.get('address')} — £{m.get('price_gbp')}, "
+            f"{m.get('bedrooms')} bed — {m.get('match_reason')}"
+        )
     return 0
 
 
