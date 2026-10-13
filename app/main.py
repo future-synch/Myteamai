@@ -142,8 +142,10 @@ async def welcome_from_text(
 
 
 @app.post("/bot/register-applicant", response_model=RegisterApplicantResponse)
-async def register_applicant(req: RegisterApplicantRequest, _: dict = Depends(require_auth)):
-    return await fn_register_applicant(req)
+async def register_applicant(req: RegisterApplicantRequest, auth: dict = Depends(require_auth)):
+    # FS-57: the welcome email signs off with the agent's configured display
+    # name (JWT "name" claim), never a name derived from the email local-part.
+    return await fn_register_applicant(req, agent_name=auth.get("name"))
 
 
 @app.post("/bot/match-applicants", response_model=MatchApplicantsResponse)

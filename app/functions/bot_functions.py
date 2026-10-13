@@ -6,6 +6,7 @@ All 6 bot function implementations.
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -277,37 +278,156 @@ def _request_to_criteria(req: RegisterApplicantRequest) -> Dict[str, Any]:
     }
 
 
-async def _compose_welcome_draft(criteria: Dict[str, Any], matches: List[dict]) -> Optional[Dict[str, str]]:
-    """
-    Step-c adapter: run fn_generate_welcome (WelcomeRequest -> single draft
-    string) and shape it into the A-2 rev 5 {subject, html_body, text_body}.
-    Called WITHOUT dispatch — fn_generate_welcome's dispatch flag is untouched
-    (removal is FS-57).
-    """
-    wreq = WelcomeRequest(
-        client_name=criteria["full_name"],
-        source=_SOURCE_TITLE.get(criteria["source"], "Other"),
-        agent_name="Curtis Sloane",  # TODO: pull from tenant config at M5 go-live
-        dispatch=False,
-        budget_gbp=None,
-        property_type=", ".join(criteria.get("property_types") or []) or None,
+# ---------------------------------------------------------------------------
+# FS-57 — deterministic welcome email (NO Claude call for the body).
+# fn_generate_welcome and the standalone welcome path are untouched; this is a
+# separate, templated composer used only by registration step c.
+# ---------------------------------------------------------------------------
+
+_COUNT_WORD_CAP = {1: "One", 2: "Two", 3: "Three"}
+_COUNT_WORD_LC = {2: "two", 3: "three"}
+
+
+def _welcome_first_name(full_name: str) -> Optional[str]:
+    """First word of a multi-word name; None for a single word (-> 'Hello,')."""
+    parts = str(full_name or "").strip().split()
+    return parts[0] if len(parts) >= 2 else None
+
+
+def _budget_display(gbp: Optional[int]) -> Optional[str]:
+    """Submitted budget as 'around £750k' (< £1m, whole thousands) or
+    'around £1m' / '£1.5m' / '£1.25m' (>= £1m, up to two decimals, zeros
+    trimmed). Never the HubSpot band."""
+    if not gbp:
+        return None
+    if gbp < 1_000_000:
+        return f"around £{round(gbp / 1000)}k"
+    millions = f"{gbp / 1_000_000:.2f}".rstrip("0").rstrip(".")
+    return f"around £{millions}m"
+
+
+def _welcome_search_parts(req: RegisterApplicantRequest) -> List[str]:
+    """The supplied-only search summary parts, in display order. Uses the
+    SUBMITTED property types / budget / timeline — never the HubSpot band."""
+    parts: List[str] = []
+    types = [t for t in (req.property_types or []) if t != "any"]
+    if types:
+        parts.append("/".join(t.capitalize() for t in types))
+    budget = _budget_display(req.budget_gbp)
+    if budget:
+        parts.append(budget)
+    if req.timeline_weeks:
+        parts.append(f"within {req.timeline_weeks} weeks")
+    return parts
+
+
+def _listing_content(match: dict) -> str:
+    """One listing, by an EXPLICIT allowlist: address, price, bedrooms only.
+    Nothing else on the match object (score, id, reason, notes) is read."""
+    address = match.get("address")
+    price = match.get("price_gbp")
+    bedrooms = match.get("bedrooms")
+    line = f"{address}, £{price:,}"
+    if bedrooms is not None:
+        line += f", {bedrooms} bedroom{'' if bedrooms == 1 else 's'}"
+    return line
+
+
+def _render_welcome_email(
+    *,
+    first_name: Optional[str],
+    search_parts: List[str],
+    matches: List[dict],
+    agent_name: Optional[str],
+) -> Dict[str, str]:
+    """Pure, deterministic template -> {subject, html_body, text_body}."""
+    count = len(matches)
+    agent = agent_name or "The Curtis Sloane team"
+    greeting = f"Hi {first_name}," if first_name else "Hello,"
+    contents = [_listing_content(m) for m in matches]
+
+    # Subject
+    if count == 0:
+        subject = "Thank you for registering with Curtis Sloane"
+    else:
+        noun = "property" if count == 1 else "properties"
+        subject = f"{_COUNT_WORD_CAP.get(count, count)} {noun} to start your search"
+
+    # Lead-in (non-zero only)
+    lead = None
+    if count == 1:
+        lead = "To start, this one stands out:"
+    elif count > 1:
+        lead = f"To start, these are the {_COUNT_WORD_LC.get(count, count)} that fit best:"
+
+    holding = ("We don't have a close match yet, but we will be in touch as soon "
+               "as something suitable comes in.")
+    closing = ("If any of these catch your eye, reply to this email and I will "
+               "arrange a viewing and send you the full details.")
+    search_sentence = ("Thank you for registering with Curtis Sloane. Here is "
+                       "what we have noted for your search:")
+    signoff = f"Best wishes,\n{agent}\nCurtis Sloane"
+
+    # --- plain text ---
+    text_blocks: List[str] = [greeting]
+    if search_parts:
+        text_blocks.append(f"{search_sentence}\n\n" + " · ".join(search_parts))
+    if count == 0:
+        text_blocks.append(holding)
+    else:
+        text_blocks.append(lead)
+        text_blocks.append("\n".join(f"{i}. {c}" for i, c in enumerate(contents, 1)))
+        text_blocks.append(closing)
+    text_blocks.append(signoff)
+    text_body = "\n\n".join(text_blocks)
+
+    # --- html (escape every inserted value) ---
+    html_blocks: List[str] = [f"<p>{html.escape(greeting)}</p>"]
+    if search_parts:
+        html_blocks.append(
+            f"<p>{html.escape(search_sentence)}<br>"
+            f"{html.escape(' · '.join(search_parts))}</p>"
+        )
+    if count == 0:
+        html_blocks.append(f"<p>{html.escape(holding)}</p>")
+    else:
+        html_blocks.append(f"<p>{html.escape(lead)}</p>")
+        html_blocks.append(
+            "<ol>" + "".join(f"<li>{html.escape(c)}</li>" for c in contents) + "</ol>"
+        )
+        html_blocks.append(f"<p>{html.escape(closing)}</p>")
+    html_blocks.append(f"<p>Best wishes,<br>{html.escape(agent)}<br>Curtis Sloane</p>")
+    html_body = "".join(html_blocks)
+
+    return {"subject": subject, "html_body": html_body, "text_body": text_body}
+
+
+def _compose_welcome_draft(
+    req: RegisterApplicantRequest,
+    matches: List[dict],
+    agent_name: Optional[str] = None,
+) -> Dict[str, str]:
+    """Step-c composer: assemble the template inputs from the SUBMITTED request
+    and the matches, then render deterministically. No Claude call."""
+    return _render_welcome_email(
+        first_name=_welcome_first_name(req.full_name),
+        search_parts=_welcome_search_parts(req),
+        matches=matches,
+        agent_name=agent_name,
     )
-    wres = await fn_generate_welcome(wreq)
-    if wres.status != "ok" or not wres.message_draft:
-        raise RuntimeError(f"welcome composition returned status={wres.status}")
-    text = wres.message_draft
-    return {
-        "subject":   f"Welcome to Curtis Sloane, {criteria['full_name']}",
-        "html_body": "".join(f"<p>{p.strip()}</p>" for p in text.split("\n\n") if p.strip()),
-        "text_body": text,
-    }
 
 
-async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplicantResponse:
+async def fn_register_applicant(
+    req: RegisterApplicantRequest,
+    agent_name: Optional[str] = None,
+) -> RegisterApplicantResponse:
     """
     FS-55 four-step orchestrator (A-2 rev 5). This function performs none of the
     work itself — it delegates to four collaborators and isolates each one's
     failure so a later step never unwinds an earlier success.
+
+    agent_name (FS-57): the signed-in agent's display name for the welcome
+    sign-off; falls back to "The Curtis Sloane team" when None.
     """
     errors: List[str] = []
     criteria = _request_to_criteria(req)
@@ -346,10 +466,9 @@ async def fn_register_applicant(req: RegisterApplicantRequest) -> RegisterApplic
     # ---- Step c: welcome composition — ALWAYS; isolated. ---------------
     welcome_draft: Optional[Dict[str, str]] = None
     try:
-        # PENDING Olesya confirmation — composition runs on every registration
-        # including dispatch=false per A-2 rev 5.
-        # See A-2 open item 9 and page 50823188 section 1.10.
-        welcome_draft = await _compose_welcome_draft(criteria, first_matches)
+        # FS-57: deterministic template (no Claude call); composition runs on
+        # every registration including dispatch=false per A-2 rev 5.
+        welcome_draft = _compose_welcome_draft(req, first_matches, agent_name=agent_name)
     except Exception as exc:
         log.warning("Step c (welcome) failed: %s", exc)
         errors.append(f"WELCOME_FAILED: {exc}")

@@ -45,12 +45,17 @@ class LoginResponse(BaseModel):
     role: str
 
 
-def create_token(email: str, role: str) -> str:
+def create_token(email: str, role: str, name: Optional[str] = None) -> str:
     payload = {
         "sub": email,
         "role": role,
         "exp": datetime.now(timezone.utc) + TOKEN_TTL,
     }
+    # FS-57: carry a display name when the user record has one. _USERS has none
+    # in source (MVP); a real directory supplies it at M5. Absent -> the welcome
+    # email signs off with the team-name fallback.
+    if name:
+        payload["name"] = name
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -58,7 +63,7 @@ def authenticate(email: str, password: str) -> Optional[LoginResponse]:
     user = _USERS.get(email)
     if not user or user["password"] != password:
         return None
-    token = create_token(email, user["role"])
+    token = create_token(email, user["role"], name=user.get("name"))
     return LoginResponse(access_token=token, role=user["role"])
 
 
