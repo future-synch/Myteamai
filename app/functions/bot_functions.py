@@ -90,6 +90,8 @@ async def fn_generate_welcome(req: WelcomeRequest) -> WelcomeResponse:
                 hs_result = await hubspot_service.create_contact({
                     "firstname": req.client_name.split()[0],
                     "lastname":  " ".join(req.client_name.split()[1:]) or "",
+                    # FS-57: this dispatch write still uses the old "applicant_source"
+                    # name; FS-57 removes fn_generate_welcome's dispatch behaviour.
                     "applicant_source": req.source,
                 })
                 hubspot_id = str(hs_result.get("id", "")) or None
@@ -534,6 +536,9 @@ async def fn_match_applicants(req: MatchApplicantsRequest) -> MatchApplicantsRes
     match_records: List[Dict[str, Any]] = []
     for a in filtered:
         s = score_map.get(a.get("id"), {})
+        # FS-67 KYC exception (blocked on item A, KYC-on-Deal): get_all_applicants
+        # now parks kyc_status/kyc_documents_outstanding to None, so these reads
+        # degrade to kyc_complete=False / no outstanding until KYC moves to the Deal.
         kyc_complete = (a.get("kyc_status") or "").lower() in _KYC_COMPLETE_STATES
         outstanding_raw = a.get("kyc_documents_outstanding") or ""
         # Support both comma- and semicolon-separated formats
@@ -682,6 +687,9 @@ async def fn_kyc_status(req: KYCStatusRequest) -> KYCStatusResponse:
             )
 
         props = contact.get("properties", {})
+        # FS-67 KYC exception (blocked on item A, KYC-on-Deal): fn_kyc_status still
+        # reads KYC from the contact; the new schema has no kyc_* on contacts, so
+        # this returns "not found" live until KYC is read from the associated Deal.
         kyc_status_value = (props.get("kyc_status") or "").lower()
         outstanding_raw  = props.get("kyc_documents_outstanding") or ""
         outstanding_items: Optional[List[str]] = (
