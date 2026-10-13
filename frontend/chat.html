@@ -54,6 +54,7 @@
     .msg.user { background: #4f46e5; color: #fff; align-self: flex-end; }
     .msg.error { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; align-self: flex-start; }
     .msg.success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; align-self: flex-start; }
+    .msg.info { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; align-self: flex-start; }
     .capabilities { margin-top: 0.5rem; }
     .capabilities li { font-size: 0.82rem; margin-left: 1.25rem; margin-top: 0.2rem; }
     .contact-card {
@@ -424,8 +425,27 @@
       if (ok && data.status === 'ok' && data.applicant_id) {
         const n = Array.isArray(data.first_matches) ? data.first_matches.length : 0;
         const matchNote = n ? ` — ${n} suggested ${n === 1 ? 'match' : 'matches'}` : '';
-        const verb = data.created ? 'New applicant registered' : 'Existing applicant updated';
-        addMsg(`✓ ${verb} in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}`, 'success');
+        if (data.created) {
+          addMsg(`✓ New applicant registered in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}`, 'success');
+        } else {
+          // Q6: existing applicant — NOT overwritten. Show what we already hold
+          // vs what was just submitted; the differences are reported, not applied.
+          const diff = (data.diff && typeof data.diff === 'object') ? data.diff : {};
+          const rows = Object.keys(diff).map(field => {
+            const d = diff[field] || {};
+            const submitted = Array.isArray(d.submitted) ? d.submitted.join('; ') : (d.submitted ?? '');
+            const existing  = Array.isArray(d.existing)  ? d.existing.join('; ')  : (d.existing  ?? '—');
+            return `• <strong>${field}</strong>: we hold “${existing}”, you entered “${submitted}”`;
+          });
+          const diffNote = rows.length
+            ? `<br>Differences (not applied — existing record is preserved):<br>${rows.join('<br>')}`
+            : '<br>Nothing differs from what we already hold.';
+          addMsg(
+            `ℹ️ This applicant already exists in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}.` +
+            ` Their existing record was left unchanged.${diffNote}`,
+            'info'
+          );
+        }
       } else {
         // Real error: backend sends an `errors` list (A-2 rev 5); a 422 sends `detail`.
         let reason = 'Unknown error';

@@ -104,17 +104,13 @@ class FakeHubspotClient:
             self._by_email[email] = contact_id
         return {"id": contact_id, "properties": dict(properties)}
 
-    async def update_contact_by_email(self, email: str, properties: dict[str, Any]) -> dict[str, Any]:
-        self.calls.append({
-            "endpoint":   "update_contact_by_email",
-            "email":      email,
-            "properties": dict(properties),
-        })
+    async def search_contact_by_email(self, email: str, properties: list[str]) -> dict[str, Any] | None:
+        # READ-ONLY (Q6: never overwrite the existing applicant). Returns the
+        # stored contact's properties so the caller can compute the diff.
+        self.calls.append({"endpoint": "search_contact_by_email", "email": email})
         contact_id = self._by_email.get(email)
         if contact_id is None:
-            raise HubspotError(404, f"No contact for email {email}")
-        # Merge: only the provided keys are written; existing values are kept.
-        self._contacts[contact_id].update(properties)
+            return None
         return {"id": contact_id, "properties": dict(self._contacts[contact_id])}
 
     # ---- Inspection helpers (test-only) --------------------------------
