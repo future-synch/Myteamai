@@ -281,6 +281,38 @@ async def get_listing_by_address(address: str, token: Optional[str] = None) -> O
 APPLICANT_FULL_PROPS = list(APPLICANT_READ_PROPS)  # type_of_customer already included
 
 
+def _normalise_applicant(props: Dict[str, Any], record_id: Any) -> Dict[str, Any]:
+    """
+    Map a raw contact `properties` dict (new-schema names) to the stable
+    normalised shape fn_match_applicants consumes. Output keys are unchanged from
+    the pre-FS-67 shape so fn_match_applicants stays untouched; the only addition
+    is the "timeline" key (raw band string, not mapped to weeks).
+    """
+    return {
+        "id":                        record_id,
+        "name":                      f"{props.get('firstname') or ''} {props.get('lastname') or ''}".strip(),
+        "email":                     props.get("email"),
+        "budget_gbp":                _budget_ceiling(props.get("budget")),
+        "bedrooms_min":              _beds_minimum(props.get("beds_required")),
+        # NO clean new source (beds_required is floor-only) — reported.
+        "bedrooms_max":              None,
+        # Raw semicolon string kept so fn_match_applicants is untouched;
+        # callers wanting a list use _split_multi().
+        "property_types":            props.get("property_types"),
+        "financing":                 props.get("financing_status"),
+        # NO clean new source — FS-16 (Direction 2) needs a proper source:
+        # outside_space + parking.
+        "must_have":                 None,
+        # 'timeline' is a banded enum, not weeks: keep timeline_weeks None and
+        # surface the raw band under the additive "timeline" key (not mapped).
+        "timeline_weeks":            None,
+        "timeline":                  props.get("timeline"),
+        # KYC parked — moved to the Deal object (item A, blocked).
+        "kyc_status":                None,
+        "kyc_documents_outstanding": None,
+    }
+
+
 async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Fetch every contact that is an applicant. An applicant is any contact where
@@ -322,27 +354,7 @@ async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]
                 raise HubSpotError(f"{r.status_code}: {r.text}")
             body = r.json()
             for rec in body.get("results", []):
-                p = rec.get("properties", {})
-                results.append({
-                    "id":                        rec.get("id"),
-                    "name":                      f"{p.get('firstname') or ''} {p.get('lastname') or ''}".strip(),
-                    "email":                     p.get("email"),
-                    "budget_gbp":                _budget_ceiling(p.get("budget")),
-                    "bedrooms_min":              _beds_minimum(p.get("beds_required")),
-                    # NO clean new source (beds_required is floor-only) — reported.
-                    "bedrooms_max":              None,
-                    # Raw semicolon string kept so fn_match_applicants is untouched;
-                    # callers wanting a list use _split_multi().
-                    "property_types":            p.get("property_types"),
-                    "financing":                 p.get("financing_status"),
-                    # NO clean new source (narrowed into outside_space+parking) — reported.
-                    "must_have":                 None,
-                    # NO clean new source ('timeline' is a banded enum, not weeks) — reported.
-                    "timeline_weeks":            None,
-                    # KYC parked — moved to the Deal object (item A, blocked).
-                    "kyc_status":                None,
-                    "kyc_documents_outstanding": None,
-                })
+                results.append(_normalise_applicant(rec.get("properties", {}), rec.get("id")))
 
             paging = body.get("paging", {}).get("next", {})
             after = paging.get("after")
