@@ -362,3 +362,98 @@ async def get_all_applicants(token: Optional[str] = None) -> List[Dict[str, Any]
                 break
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# FS-70: Listings fetch for Direction-1 matching (find_matching_listings).
+# Mirrors get_all_applicants() — same token / tenant / client handling.
+# Verified against Confluence "Listings schema - definitive 2026-10-06"
+# (object 0-420); NOT yet verified against the demo portal.
+# ---------------------------------------------------------------------------
+
+LISTINGS_FETCH_PROPS = [
+    "hs_name", "hs_address_1", "hs_price", "hs_bedrooms", "hs_listing_type",
+    "postcode", "listing_status", "off_market",
+    "outside_space", "parking", "works_required", "area",
+]
+
+_BOOL_TRUE = {"true", "1", "yes", "on"}
+
+
+def _parse_bool(value: Any) -> bool:
+    """HubSpot booleans arrive as 'true'/'false'/'' or real bools — parse safely."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in _BOOL_TRUE
+
+
+def _normalise_listing(props: Dict[str, Any], record_id: Any) -> Dict[str, Any]:
+    """Normalise a raw Listings (0-420) properties dict to the matching shape.
+    `neighborhood` uses `area` — hs_neighborhood is not on the Listings schema."""
+    return {
+        "id":             record_id,
+        "address":        props.get("hs_address_1") or props.get("hs_name"),
+        "price_gbp":      props.get("hs_price"),
+        "bedrooms":       props.get("hs_bedrooms"),
+        "listing_type":   props.get("hs_listing_type"),
+        "neighborhood":   props.get("area"),
+        "postcode":       props.get("postcode"),
+        "outside_space":  props.get("outside_space"),
+        "parking":        props.get("parking"),
+        "works_required": props.get("works_required"),
+        "area":           props.get("area"),
+        "listing_status": props.get("listing_status"),
+    }
+
+
+async def get_all_listings(token: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Fetch market-available Listings (object 0-420): listing_status ==
+    'available_for_sale' AND not off_market. Cursor-paginated. off_market is
+    excluded in Python after fetch (a server-side NEQ would drop records whose
+    off_market is empty). Mirrors get_all_applicants() for token/tenant/client.
+    """
+    if not (token or os.getenv("HUBSPOT_API_KEY")):
+        return []
+
+    headers = _headers() if token is None else {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  "application/json",
+    }
+
+    results: List[Dict[str, Any]] = []
+    after: Optional[str] = None
+    max_pages = 20
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        for _ in range(max_pages):
+            payload: Dict[str, Any] = {
+                "filterGroups": [
+                    {"filters": [{"propertyName": "listing_status", "operator": "EQ", "value": "available_for_sale"}]},
+                ],
+                "properties": LISTINGS_FETCH_PROPS,
+                "limit": 100,
+            }
+            if after:
+                payload["after"] = after
+
+            r = await client.post(
+                f"{HUBSPOT_BASE}/crm/v3/objects/{LISTINGS_OBJECT_ID}/search",
+                headers=headers,
+                json=payload,
+            )
+            if r.status_code >= 400:
+                raise HubSpotError(f"{r.status_code}: {r.text}")
+            body = r.json()
+            for rec in body.get("results", []):
+                p = rec.get("properties", {})
+                if _parse_bool(p.get("off_market")):
+                    continue  # C3: exclude off-market in Python, not via server NEQ
+                results.append(_normalise_listing(p, rec.get("id")))
+
+            paging = body.get("paging", {}).get("next", {})
+            after = paging.get("after")
+            if not after:
+                break
+
+    return results
