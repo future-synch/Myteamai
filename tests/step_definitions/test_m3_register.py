@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 import app.functions.bot_functions as bot_functions
 from app.services import hubspot_service
+from app.services.hubspot_registration import RegistrationResult
 
 scenarios("../features/m3_register_applicant.feature")
 client = TestClient(app)
@@ -25,7 +26,7 @@ _id_seq = itertools.count(start=7001)
 def mock_register(monkeypatch):
     # Intercept step a — no HubSpot network, deterministic applicant id.
     async def fake_register(criteria, hs_client):
-        return str(next(_id_seq))
+        return RegistrationResult(contact_id=str(next(_id_seq)), created=True)
     monkeypatch.setattr(bot_functions, "register_applicant_in_hubspot", fake_register)
 
     # FS-70: step b now fetches listings live via find_matching_listings ->

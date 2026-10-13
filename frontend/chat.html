@@ -421,10 +421,22 @@
       const btn = document.querySelector('#form-register .send-btn');
       btn.disabled = true;
       const { ok, data } = await postJSON('/bot/register-applicant', body);
-      if (ok && data.status === 'ok' && data.hubspot_contact_id) {
-        addMsg(`✓ Contact created in HubSpot — ID <strong>${data.hubspot_contact_id}</strong>`, 'success');
+      if (ok && data.status === 'ok' && data.applicant_id) {
+        const n = Array.isArray(data.first_matches) ? data.first_matches.length : 0;
+        const matchNote = n ? ` — ${n} suggested ${n === 1 ? 'match' : 'matches'}` : '';
+        const verb = data.created ? 'New applicant registered' : 'Existing applicant updated';
+        addMsg(`✓ ${verb} in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}`, 'success');
       } else {
-        addMsg('Failed to create contact: ' + (data.detail || data.status || 'Unknown'), 'error');
+        // Real error: backend sends an `errors` list (A-2 rev 5); a 422 sends `detail`.
+        let reason = 'Unknown error';
+        if (data && Array.isArray(data.errors) && data.errors.length) {
+          reason = data.errors.join(', ');
+        } else if (data && Array.isArray(data.detail)) {
+          reason = data.detail.map(d => d.msg || JSON.stringify(d)).join(', ');
+        } else if (data && typeof data.detail === 'string') {
+          reason = data.detail;
+        }
+        addMsg('Failed to create contact: ' + reason, 'error');
       }
       btn.disabled = false;
     }

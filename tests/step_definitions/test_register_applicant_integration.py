@@ -438,7 +438,7 @@ def _register_live(ictx: ICtx) -> None:
     ictx.reg_email = email
     ictx.contact_id = run_async(
         register_applicant_in_hubspot(payload, ictx.session.client)
-    )
+    ).contact_id
     ictx.session.track(ictx.contact_id)
 
 
@@ -608,13 +608,13 @@ def step_generate_applicant(ictx):
     first = run_async(register_applicant_in_hubspot(
         {**_valid_live_payload(ictx.session)[0], "email": ictx.reg_email},
         ictx.session.client,
-    ))
+    )).contact_id
     ictx.session.track(first)
     ictx.contact_id = first
     second = run_async(register_applicant_in_hubspot(
         {**_valid_live_payload(ictx.session)[0], "email": second_email},
         ictx.session.client,
-    ))
+    )).contact_id
     ictx.session.track(second)
     ictx.record = {"first": ictx.reg_email, "second": second_email}
 

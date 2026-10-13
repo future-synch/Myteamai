@@ -89,10 +89,16 @@ def _register(ctx: Ctx) -> None:
         ctx.result = None
 
 
+def _result_id(ctx: Ctx):
+    """register_applicant_in_hubspot now returns RegistrationResult; pull the id."""
+    return ctx.result.contact_id if ctx.result is not None else None
+
+
 def _created_contact(ctx: Ctx) -> dict[str, Any] | None:
     """Return the properties of the last created contact, or None."""
-    if ctx.result and ctx.result in ctx.client.contacts:
-        return ctx.client.contacts[ctx.result]
+    cid = _result_id(ctx)
+    if cid and cid in ctx.client.contacts:
+        return ctx.client.contacts[cid]
     calls = ctx.client.create_calls()
     if calls:
         return calls[-1]["properties"]
@@ -142,10 +148,10 @@ def step_no_listings_fetched(ctx):
 
 @then("the return value contains no property matches")
 def step_no_matches_in_return(ctx):
-    # The return value is a bare contact-id string; anything more is a leak
-    # from find_matching_listings() back into this function.
-    assert isinstance(ctx.result, str) or ctx.result is None, (
-        f"Return value is not a string, may contain matches: {ctx.result!r}"
+    # The return carries only a contact id (+ created flag); anything more would
+    # be a leak from find_matching_listings() back into this function.
+    assert ctx.result is None or isinstance(_result_id(ctx), str), (
+        f"Return value may contain matches: {ctx.result!r}"
     )
 
 
@@ -167,15 +173,16 @@ def step_no_gmail_draft(ctx):
 def step_no_welcome_generated(ctx):
     # Nothing in the return value or the recorded calls references a draft
     # or generated message body.
-    if ctx.result:
-        assert "welcome" not in ctx.result.lower()
-        assert "draft" not in ctx.result.lower()
+    cid = _result_id(ctx)
+    if cid:
+        assert "welcome" not in cid.lower()
+        assert "draft" not in cid.lower()
 
 
 @then("the return value contains no KYC structure")
 def step_no_kyc_in_return(ctx):
-    # Return value is a bare string; not a dict with a kyc_checklist key.
-    assert isinstance(ctx.result, str) or ctx.result is None, (
+    # Return carries only a contact id (+ created flag); no kyc_checklist key.
+    assert ctx.result is None or isinstance(_result_id(ctx), str), (
         f"Return value carries a KYC structure: {ctx.result!r}"
     )
 
@@ -205,14 +212,15 @@ def step_no_tokens(ctx):
 @then("the return value is the HubSpot contact ID")
 def step_return_is_contact_id(ctx):
     assert ctx.result is not None, "registration failed unexpectedly"
-    assert ctx.result in ctx.client.contacts, (
+    assert _result_id(ctx) in ctx.client.contacts, (
         f"return value {ctx.result!r} is not a HubSpot contact ID we created"
     )
 
 
 @then("the return value is a non-empty string")
 def step_return_nonempty_string(ctx):
-    assert isinstance(ctx.result, str) and len(ctx.result) > 0
+    cid = _result_id(ctx)
+    assert isinstance(cid, str) and len(cid) > 0
 
 
 # ============================================================================
@@ -307,7 +315,7 @@ def step_success(ctx):
 @then("the contact is created")
 def step_contact_created(ctx):
     assert ctx.result is not None
-    assert ctx.result in ctx.client.contacts
+    assert _result_id(ctx) in ctx.client.contacts
 
 
 @when(parsers.parse('the applicant is registered with an unrecognised field "{field}"'))
@@ -919,3 +927,66 @@ async def test_unset_dev_portal_id_fails_closed(monkeypatch):
     assert exc_info.value.code == "TENANT_UNRECOGNISED", exc_info.value.code
     assert "not configured" in str(exc_info.value).lower()
     assert not client.any_create_attempted()
+
+
+# ============================================================================
+# SECTION 6: Duplicate handling (Q6 resolved — upsert)
+# ============================================================================
+
+@given(parsers.parse('a contact already exists with email "{email}"'))
+def step_seed_existing(ctx, email):
+    ctx.existing_email = email
+    ctx.existing_id = ctx.client.seed_contact(email)
+
+
+@given(parsers.parse('a contact already exists with email "{email}" and property types already recorded'))
+def step_seed_existing_with_prop_types(ctx, email):
+    ctx.existing_email = email
+    ctx.existing_id = ctx.client.seed_contact(email, {"property_types": "maisonette"})
+
+
+@when("the applicant is registered with that email address")
+def step_register_same_email(ctx):
+    ctx.payload = _valid_payload()
+    ctx.payload["email"] = ctx.existing_email
+    _register(ctx)
+
+
+@when("the applicant is registered with that email address, a new budget, and no property types")
+def step_register_merge(ctx):
+    ctx.payload = _valid_payload()
+    ctx.payload["email"] = ctx.existing_email
+    ctx.payload["property_types"] = []            # blank multi-value -> not written on update
+    ctx.updated_budget = VALID_BUDGET[1]          # different from the default
+    ctx.payload["budget"] = ctx.updated_budget
+    _register(ctx)
+
+
+@then("no duplicate contact is created")
+def step_no_duplicate(ctx):
+    # Only the one seeded contact exists — the create 409'd, no new row stored.
+    assert len(ctx.client.contacts) == 1, ctx.client.contacts
+
+
+@then("the existing contact ID is returned")
+def step_existing_id_returned(ctx):
+    assert ctx.error is None, ctx.error
+    assert _result_id(ctx) == ctx.existing_id
+
+
+@then("the result indicates the contact was updated, not created")
+def step_result_updated_not_created(ctx):
+    assert ctx.error is None, ctx.error
+    assert ctx.result is not None and ctx.result.created is False
+
+
+@then("the existing property types are preserved")
+def step_property_types_preserved(ctx):
+    stored = ctx.client.contacts[ctx.existing_id]
+    assert stored.get("property_types") == "maisonette", stored
+
+
+@then("the new budget is written to the contact")
+def step_budget_updated(ctx):
+    stored = ctx.client.contacts[ctx.existing_id]
+    assert stored.get("budget") == ctx.updated_budget, stored
