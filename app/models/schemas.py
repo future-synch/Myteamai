@@ -214,7 +214,7 @@ class MatchApplicantsResponse(BaseModel):
 class ValuationBriefRequest(BaseModel):
     address: str
     postcode: str
-    property_type: Literal["house", "flat", "maisonette"]
+    property_type: Literal["house", "townhouse", "apartment", "maisonette", "mews", "penthouse"]
     bedrooms: int = Field(ge=0)
     condition: Optional[Literal["excellent", "good", "fair", "needs_work"]] = None
     sqft: Optional[int] = None
