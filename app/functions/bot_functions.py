@@ -375,7 +375,14 @@ def _render_welcome_email(
                "arrange a viewing and send you the full details.")
     search_sentence = ("Thank you for registering with Curtis Sloane. Here is "
                        "what we have noted for your search:")
-    signoff = f"Best wishes,\n{agent}\nCurtis Sloane"
+    # With a name: "{name}\nCurtis Sloane". Without: the team name stands alone,
+    # no extra "Curtis Sloane" company line beneath it.
+    if agent_name:
+        signoff = f"Best wishes,\n{agent_name}\nCurtis Sloane"
+        signoff_html = f"<p>Best wishes,<br>{html.escape(agent_name)}<br>Curtis Sloane</p>"
+    else:
+        signoff = f"Best wishes,\n{agent}"
+        signoff_html = f"<p>Best wishes,<br>{html.escape(agent)}</p>"
 
     # --- plain text ---
     text_blocks: List[str] = [greeting]
@@ -405,7 +412,7 @@ def _render_welcome_email(
             "<ol>" + "".join(f"<li>{html.escape(c)}</li>" for c in contents) + "</ol>"
         )
         html_blocks.append(f"<p>{html.escape(closing)}</p>")
-    html_blocks.append(f"<p>Best wishes,<br>{html.escape(agent)}<br>Curtis Sloane</p>")
+    html_blocks.append(signoff_html)
     html_body = "".join(html_blocks)
 
     return {"subject": subject, "html_body": html_body, "text_body": text_body}

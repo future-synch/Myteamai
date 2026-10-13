@@ -273,6 +273,7 @@ def step_set_display_name(ctx, monkeypatch, name):
     user = dict(auth._USERS[AGENT_EMAIL])
     user["name"] = name
     monkeypatch.setitem(auth._USERS, AGENT_EMAIL, user)
+    ctx.display_name = name
     ctx.headers = _login(ctx.email)
 
 
@@ -441,6 +442,13 @@ def step_signoff_name(ctx, name):
     assert name in _both(ctx), f"sign-off did not use the display name {name!r}"
 
 
+@then("the sign-off keeps the Curtis Sloane line below the name")
+def step_signoff_company_line(ctx):
+    # With a name, the sign-off is "{name}\nCurtis Sloane".
+    assert f"{ctx.display_name}\nCurtis Sloane" in _text(ctx), "company line missing below the name"
+    assert f"{html.escape(ctx.display_name)}<br>Curtis Sloane" in _html(ctx), "company line missing in html"
+
+
 @then("the sign-off is not the agent's email local-part")
 def step_signoff_not_email(ctx):
     local = ctx.email.split("@")[0]
@@ -450,3 +458,13 @@ def step_signoff_not_email(ctx):
 @then(parsers.parse('the email is signed off as "{team}"'))
 def step_signoff_team(ctx, team):
     assert team in _both(ctx), f"sign-off did not fall back to {team!r}"
+
+
+@then("no company line follows the team name")
+def step_no_company_line_after_team(ctx):
+    # The team-name fallback stands alone — no extra "Curtis Sloane" line after it.
+    assert "The Curtis Sloane team\nCurtis Sloane" not in _text(ctx), \
+        "a 'Curtis Sloane' line follows the team-name fallback in text_body"
+    assert "The Curtis Sloane team<br>Curtis Sloane" not in _html(ctx), \
+        "a 'Curtis Sloane' line follows the team-name fallback in html_body"
+    assert "Best wishes,\nThe Curtis Sloane team" in _text(ctx), "sign-off block malformed"
