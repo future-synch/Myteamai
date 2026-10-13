@@ -153,8 +153,8 @@ Feature: Register an applicant in HubSpot
       | source            |
 
   Scenario: Enum comparison is exact, not case-insensitive
-    Given the configured option set for "property_types" contains "flat"
-    When the applicant is registered with property_types "Flat"
+    Given the configured option set for "property_types" contains "apartment"
+    When the applicant is registered with property_types "Apartment"
     Then the registration is rejected
     And no contact is created in HubSpot
 

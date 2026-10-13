@@ -10,7 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.services import hubspot_service
-from app.models.schemas import ValuationBriefRequest
+from app.models.schemas import ValuationBriefRequest, RegisterApplicantRequest
+from app.functions.bot_functions import _norm_property_types
 
 
 # ---------------------------------------------------------------------------
@@ -56,3 +57,35 @@ def test_valuation_rejects_retired_values(bad):
     with pytest.raises(ValidationError):
         ValuationBriefRequest(address="8 Portland Road", postcode="W11 4LA",
                               property_type=bad, bedrooms=3)
+
+
+# ---------------------------------------------------------------------------
+# Item 3 — write-path property_types boundary: flat -> apartment, any -> skip
+# ---------------------------------------------------------------------------
+
+def test_flat_maps_to_apartment():
+    assert _norm_property_types(["flat"]) == ["apartment"]
+
+
+def test_any_is_skip_predicate():
+    assert _norm_property_types(["any"]) == []
+
+
+def test_flat_mixed_with_canonical_maps_in_place():
+    assert _norm_property_types(["flat", "house"]) == ["apartment", "house"]
+
+
+def test_unknown_type_is_dropped():
+    assert _norm_property_types(["bungalow"]) == []
+
+
+@pytest.mark.parametrize("pt", [["flat"], ["any"], ["apartment"], ["house", "flat"]])
+def test_register_request_accepts_legacy_and_canonical(pt):
+    # Legacy ("flat"/"any") and canonical values are accepted at the API boundary;
+    # normalisation to the live vocabulary happens before the HubSpot write.
+    req = RegisterApplicantRequest(
+        full_name="Test User", email="t@example.com", phone="07700900000",
+        budget_gbp=1_000_000, bedrooms_min=2, property_types=pt,
+        financing="cash", preferred_channel="email", source="direct",
+    )
+    assert req.property_types == pt
