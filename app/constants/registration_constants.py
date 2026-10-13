@@ -80,6 +80,8 @@ VALID_SOURCE: list[str] = [
 # checkbox and Listings hs_listing_type). Legacy "flat" is accepted at the API
 # boundary and mapped to "apartment" before the HubSpot write (see
 # _norm_property_types); "any" is treated as skip-predicate there.
+# apartment per Confluence Contacts schema 2026-09-10; older contacts_schema.py
+# copies (pre-2026-09-08) still say flat.
 VALID_PROPERTY_TYPES: list[str] = [
     "house",
     "apartment",
