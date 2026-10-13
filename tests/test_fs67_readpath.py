@@ -6,7 +6,9 @@ hubspot_service (FS-70 will reuse the parsers). They must never raise.
 """
 import pytest
 
-from app.services.hubspot_service import _budget_ceiling, _beds_minimum, _split_multi
+from app.services.hubspot_service import (
+    _budget_ceiling, _beds_minimum, _split_multi, _normalise_applicant,
+)
 
 
 # ---- _budget_ceiling: up_to_Nm -> N*1e6, ten_plus -> None, bad -> None -------
@@ -63,3 +65,37 @@ def test_beds_minimum_bad_returns_none(bad):
 ])
 def test_split_multi(raw, expected):
     assert _split_multi(raw) == expected
+
+
+# ---- _normalise_applicant: new additive "timeline" key + parsed/parked shape -
+
+def test_normalise_applicant_surfaces_raw_timeline_band():
+    props = {
+        "firstname": "Tom", "lastname": "Baker", "email": "t@example.com",
+        "budget": "up_to_3m", "beds_required": "4_plus",
+        "property_types": "house;apartment", "financing_status": "cash",
+        "timeline": "within_3_months",
+    }
+    out = _normalise_applicant(props, "c-1")
+
+    # Additive raw band, NOT mapped to weeks.
+    assert out["timeline"] == "within_3_months"
+    assert out["timeline_weeks"] is None
+    # Parsed numeric fields.
+    assert out["budget_gbp"] == 3_000_000
+    assert out["bedrooms_min"] == 4
+    # property_types kept as the raw semicolon string (fn_match splits it).
+    assert out["property_types"] == "house;apartment"
+    assert out["financing"] == "cash"
+    # No-source / parked fields.
+    assert out["bedrooms_max"] is None
+    assert out["must_have"] is None
+    assert out["kyc_status"] is None
+    assert out["kyc_documents_outstanding"] is None
+
+
+def test_normalise_applicant_handles_missing_timeline():
+    out = _normalise_applicant({"email": "x@example.com"}, "c-2")
+    assert out["timeline"] is None
+    assert out["budget_gbp"] is None
+    assert out["bedrooms_min"] is None
