@@ -154,10 +154,12 @@ Feature: Deterministic welcome email with matched listings (FS-57)
     And the applicant has one matched listing
     When the applicant is registered
     Then the email is signed off with "Nadia Rahman"
+    And the sign-off keeps the Curtis Sloane line below the name
     And the sign-off is not the agent's email local-part
 
-  Scenario: The sign-off falls back to the team name when no display name is configured
+  Scenario: The sign-off falls back to the team name alone when no display name is configured
     Given the agent has no configured display name
     And the applicant has one matched listing
     When the applicant is registered
     Then the email is signed off as "The Curtis Sloane team"
+    And no company line follows the team name
