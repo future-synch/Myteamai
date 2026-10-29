@@ -29,6 +29,7 @@ from app.services.hubspot_registration import (
     register_applicant_in_hubspot,
 )
 from app.services.hubspot_client import build_hubspot_client
+from app.services.listing_document import get_brochure_link
 from app.services.matching import find_matching_listings
 from app.services.transports.gmail import create_draft
 
@@ -438,20 +439,28 @@ async def fn_register_applicant(
     agent_name: Optional[str] = None,
 ) -> RegisterApplicantResponse:
     """
-    FS-55 four-step orchestrator (A-2 rev 5). This function performs none of the
-    work itself — it delegates to four collaborators and isolates each one's
-    failure so a later step never unwinds an earlier success.
+    FS-55 five-step orchestrator (A-2 rev 4, pending publish). This function
+    performs none of the work itself — it delegates to five collaborators and
+    isolates each one's failure so a later step never unwinds an earlier
+    success.
+
+        a. register_applicant_in_hubspot()  — FS-50, writes the contact
+        b. find_matching_listings()         — FS-70, reads listings
+        c. get_brochure_link() per match    — FS-71, reads a brochure URL
+        d. _compose_welcome_draft()         — FS-57, composes text only
+        e. create_draft()                   — FS-42, gated by dispatch=True
 
     agent_name (FS-57): the signed-in agent's display name for the welcome
     sign-off; falls back to "The Curtis Sloane team" when None.
     """
     errors: List[str] = []
     criteria = _request_to_criteria(req)
+    hs_client = build_hubspot_client()
 
     # ---- Step a: register in HubSpot — ALWAYS. Validation or step-a failure
-    # returns early; steps b/c/d never run. -------------------------------
+    # returns early; steps b/c/d/e never run. -----------------------------
     try:
-        reg = await register_applicant_in_hubspot(criteria, build_hubspot_client())
+        reg = await register_applicant_in_hubspot(criteria, hs_client)
         applicant_id, created, diff = reg.contact_id, reg.created, reg.diff
     except RegistrationError as exc:
         errors.append(exc.code or "HUBSPOT_SYNC_FAIL")
@@ -467,7 +476,7 @@ async def fn_register_applicant(
             welcome_draft=None, draft_ref=None, errors=errors,
         )
 
-    # ===== applicant STAYS REGISTERED regardless of what b/c/d do =====
+    # ===== applicant STAYS REGISTERED regardless of what b/c/d/e do =====
 
     # ---- Step b: matching — ALWAYS; isolated. --------------------------
     first_matches: List[dict] = []
@@ -479,24 +488,37 @@ async def fn_register_applicant(
         errors.append(f"MATCH_FAILED: {exc}")
         first_matches = []
 
-    # ---- Step c: welcome composition — ALWAYS; isolated. ---------------
+    # ---- Step c: brochure link per matched listing — ALWAYS; isolated
+    # per listing. A None from the delegate is normal (confidential listing,
+    # or no brochure ingested yet); it is not a failure and is not logged
+    # as one. A raised exception for one listing never affects the others
+    # and never discards the registration. --------------------------------
+    for match in first_matches:
+        listing_id = match.get("id") or match.get("listing_id")
+        try:
+            match["brochure_url"] = await get_brochure_link(hs_client, listing_id)
+        except Exception as exc:
+            log.warning("Step c (brochure) failed for listing %s: %s", listing_id, exc)
+            match["brochure_url"] = None
+
+    # ---- Step d: welcome composition — ALWAYS; isolated. ---------------
     welcome_draft: Optional[Dict[str, str]] = None
     try:
         # FS-57: deterministic template (no Claude call); composition runs on
-        # every registration including dispatch=false per A-2 rev 5.
+        # every registration including dispatch=false per A-2 rev 4.
         welcome_draft = _compose_welcome_draft(req, first_matches, agent_name=agent_name)
     except Exception as exc:
-        log.warning("Step c (welcome) failed: %s", exc)
+        log.warning("Step d (welcome) failed: %s", exc)
         errors.append(f"WELCOME_FAILED: {exc}")
         welcome_draft = None
 
-    # ---- Step d: create draft — ONLY when dispatch=True; isolated. ------
+    # ---- Step e: create draft — ONLY when dispatch=True; isolated. ------
     draft_ref: Optional[Dict[str, str]] = None
     if getattr(req, "dispatch", False) and welcome_draft is not None:
         try:
             draft_ref = create_draft(welcome_draft)
         except Exception as exc:
-            log.warning("Step d (draft) failed: %s", exc)
+            log.warning("Step e (draft) failed: %s", exc)
             errors.append(f"DRAFT_FAILED: {exc}")
             draft_ref = None
 
