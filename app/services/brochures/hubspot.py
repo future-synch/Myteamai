@@ -26,11 +26,13 @@ Behaviour that matters more than the code
   is worse than sending none.
 * 401/403 RAISE. A broken token must never flatten to "no listing has a
   brochure" — that would send every applicant a buttonless email silently.
+* Only PUBLISHABLE_ACCESS values return a url (fail closed; see that constant).
 * The URL comes from the Files API response. It is never constructed here.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -40,7 +42,8 @@ from urllib.parse import quote
 
 import httpx
 
-from app.services.hubspot_service import HUBSPOT_BASE, TIMEOUT, HubSpotError, _headers
+from app.services.hubspot_registration import HubspotError, HubspotTimeoutError
+from app.services.hubspot_service import HUBSPOT_BASE, TIMEOUT, _headers
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +62,25 @@ DOC_MARKER_RE = re.compile(r"MyTeamAI\s+document:\s*([a-z_]+)", re.I)
 _PRINT_VARIANT_RE = re.compile(r"\(\s*print\s*\)", re.I)
 
 
-class HubSpotAuthError(HubSpotError):
+# File `access` values that may be handed to an applicant. FAIL CLOSED: HubSpot's
+# Files API has eight values (PUBLIC_INDEXABLE, PUBLIC_NOT_INDEXABLE, PRIVATE,
+# SENSITIVE and four HIDDEN_*), and a deny-list of "PRIVATE" would pass
+# HIDDEN_PRIVATE, HIDDEN_SENSITIVE and SENSITIVE straight through. The decision
+# record (20 Oct) uploads PUBLIC_NOT_INDEXABLE; PUBLIC_INDEXABLE is a defect FS-72
+# reports but is reachable, so it still returns. HubSpot's reference does not
+# define the HIDDEN_* values, so they are NOT assumed publishable. Add them here
+# only after verifying one against a real file.
+PUBLISHABLE_ACCESS = frozenset({"PUBLIC_NOT_INDEXABLE", "PUBLIC_INDEXABLE"})
+
+# Retry policy: FS-50 §7 ("the existing client policy" the ticket points at).
+#   5xx -> retry once; 429 -> wait Retry-After, retry once; other 4xx -> no retry;
+#   timeout -> no retry. 401/403 raise at once (a credential problem).
+MAX_ATTEMPTS = 2                        # 1 initial + 1 retry
+MAX_RETRY_AFTER_SECONDS = 10.0          # cap: this runs in a request path
+DEFAULT_RETRY_AFTER_SECONDS = 1.0       # 429 without a Retry-After header
+
+
+class HubspotAuthError(HubspotError):
     """401/403 from HubSpot. A credential problem, not a missing brochure."""
 
 
@@ -147,12 +168,25 @@ def get_listing_document_link(
         )
         return None
 
-    url = meta.get("url")
-    if (meta.get("access") or "").upper() == "PRIVATE" or not url:
+    access = (meta.get("access") or "").upper()
+    if access == "PRIVATE":
         log.info(
-            "listing %s: file %s (%r) is PRIVATE or has no usable url; FS-72 check 3 reports it",
+            "listing %s: file %s (%r) is PRIVATE, so no usable url; FS-72 check 3 reports it",
             listing_id, file_id, meta.get("name"),
         )
+        return None
+    if access not in PUBLISHABLE_ACCESS:
+        # Anything else (SENSITIVE, HIDDEN_*, a value HubSpot adds later, or none)
+        # is unexpected: refuse, and say so loudly enough for someone to look.
+        log.warning(
+            "listing %s: file %s (%r) has access %r, which is not publishable; refusing",
+            listing_id, file_id, meta.get("name"), meta.get("access"),
+        )
+        return None
+
+    url = meta.get("url")
+    if not url:
+        log.info("listing %s: file %s (%r) has no url", listing_id, file_id, meta.get("name"))
         return None
 
     return url          # read from the Files API response, never constructed
@@ -161,6 +195,21 @@ def get_listing_document_link(
 def get_brochure_link(hs: HubSpotDocumentReader, listing_id: str) -> Optional[str]:
     """Alias so FS-55 step (c) needs no change."""
     return get_listing_document_link(hs, listing_id, "brochure")
+
+
+async def aget_listing_document_link(
+    hs: HubSpotDocumentReader, listing_id: str, kind: str = "brochure"
+) -> Optional[str]:
+    """
+    For async callers (FS-50's HubspotClient style, FastAPI handlers). The lookup is
+    synchronous per the ticket's signature and does blocking HTTP, so it runs in a
+    worker thread rather than on the event loop. Same behaviour, same exceptions.
+    """
+    return await asyncio.to_thread(get_listing_document_link, hs, listing_id, kind)
+
+
+async def aget_brochure_link(hs: HubSpotDocumentReader, listing_id: str) -> Optional[str]:
+    return await aget_listing_document_link(hs, listing_id, "brochure")
 
 
 class HubSpotBrochureLinkSource:
@@ -250,12 +299,15 @@ def _name_matches(kind: str, name: Optional[str]) -> bool:
 
 class HubSpotRestReader:
     """
-    Synchronous, read-only. 401/403 raise HubSpotAuthError; 429/5xx/transport
-    errors are retried with backoff then raise HubSpotError; 404 on a file is
-    "gone" (None). Any other 4xx raises HubSpotError.
+    Synchronous, read-only. Errors are FS-50's `HubspotError` (status_code,
+    retry_after). 401/403 raise HubspotAuthError at once. 5xx and 429 are retried
+    once (429 after waiting Retry-After, capped), then raise. A timeout raises
+    HubspotTimeoutError and other transport errors raise HubspotError(0), neither
+    retried, matching FS-50 §7. A 404 on a file is "gone" (None); any other 4xx
+    raises and is not retried.
 
-    Sync on purpose, matching the FS-71 signature. From an async orchestrator
-    call it with `fastapi.concurrency.run_in_threadpool`.
+    Sync on purpose, matching the FS-71 signature. Async callers use
+    `aget_listing_document_link`, which runs the lookup in a worker thread.
     """
 
     def __init__(
@@ -263,7 +315,7 @@ class HubSpotRestReader:
         token: Optional[str] = None,
         *,
         client: Optional[httpx.Client] = None,
-        max_attempts: int = 3,
+        max_attempts: int = MAX_ATTEMPTS,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._token = token
@@ -317,34 +369,40 @@ class HubSpotRestReader:
         return _headers()
 
     def _request(self, method: str, path: str, **kw: Any) -> httpx.Response:
-        last: Optional[str] = None
         for attempt in range(1, self._max_attempts + 1):
             try:
                 r = self._client.request(method, path, headers=self._auth_headers(), **kw)
+            except httpx.TimeoutException:
+                raise HubspotTimeoutError(f"HubSpot {method} {path} timed out") from None
             except httpx.TransportError as exc:
-                last = f"transport error: {exc.__class__.__name__}"
-                r = None
-            if r is not None:
-                if r.status_code in (401, 403):
-                    raise HubSpotAuthError(
-                        f"{r.status_code} from HubSpot on {method} {path}: credential or scope problem"
-                    )
-                if r.status_code != 429 and r.status_code < 500:
-                    return r
-                last = f"{r.status_code}"
-            if attempt < self._max_attempts:
-                self._sleep(self._backoff(attempt, r))
-        raise HubSpotError(f"HubSpot {method} {path} failed after {self._max_attempts} attempts ({last})")
+                raise HubspotError(0, f"HubSpot {method} {path} transport error: {exc.__class__.__name__}") from None
+
+            if r.status_code in (401, 403):
+                raise HubspotAuthError(
+                    r.status_code,
+                    f"{r.status_code} from HubSpot on {method} {path}: credential or scope problem",
+                )
+            if r.status_code != 429 and r.status_code < 500:
+                return r
+
+            retry_after = self._retry_after(r)
+            if attempt >= self._max_attempts:
+                raise HubspotError(
+                    r.status_code,
+                    f"HubSpot {method} {path} failed after {attempt} attempts ({r.status_code})",
+                    retry_after=retry_after,
+                )
+            if r.status_code == 429:
+                self._sleep(min(float(retry_after), MAX_RETRY_AFTER_SECONDS) if retry_after else DEFAULT_RETRY_AFTER_SECONDS)
+            # 5xx: retry immediately, as FS-50 does.
+        raise AssertionError("unreachable: max_attempts must be >= 1")        # pragma: no cover
 
     @staticmethod
-    def _backoff(attempt: int, r: Optional[httpx.Response]) -> float:
-        if r is not None:
-            ra = r.headers.get("Retry-After", "")
-            if ra.isdigit():
-                return min(float(ra), 5.0)
-        return min(0.5 * 2 ** (attempt - 1), 5.0)
+    def _retry_after(r: httpx.Response) -> Optional[int]:
+        ra = r.headers.get("Retry-After", "").strip()
+        return int(ra) if ra.isdigit() else None
 
     @staticmethod
     def _raise_unless_ok(r: httpx.Response, what: str, ok: Tuple[int, ...] = (200,)) -> None:
         if r.status_code not in ok:
-            raise HubSpotError(f"HubSpot {what} returned {r.status_code}: {r.text[:200]}")
+            raise HubspotError(r.status_code, f"HubSpot {what} returned {r.status_code}: {r.text[:200]}")

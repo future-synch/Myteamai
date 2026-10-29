@@ -5,6 +5,8 @@ FS-71 — brochure link lookup.
 
 Unset: `hubspot` when HUBSPOT_API_KEY is present, otherwise `fake` (same shape as
 ANTHROPIC_MODE). Anything else raises — a typo must not quietly mean "no brochures".
+
+Probe a real listing (read-only):  python -m app.services.brochures LISTING_ID
 """
 
 from __future__ import annotations
@@ -14,9 +16,12 @@ import os
 from .base import BrochureLinkSource
 from .fake import FakeBrochureLinkSource
 from .hubspot import (
-    HubSpotAuthError,
+    PUBLISHABLE_ACCESS,
+    HubspotAuthError,
     HubSpotBrochureLinkSource,
     HubSpotRestReader,
+    aget_brochure_link,
+    aget_listing_document_link,
     get_brochure_link,
     get_listing_document_link,
 )
@@ -24,9 +29,12 @@ from .hubspot import (
 __all__ = [
     "BrochureLinkSource",
     "FakeBrochureLinkSource",
-    "HubSpotAuthError",
+    "HubspotAuthError",
     "HubSpotBrochureLinkSource",
     "HubSpotRestReader",
+    "PUBLISHABLE_ACCESS",
+    "aget_brochure_link",
+    "aget_listing_document_link",
     "get_brochure_link",
     "get_brochure_link_source",
     "get_listing_document_link",

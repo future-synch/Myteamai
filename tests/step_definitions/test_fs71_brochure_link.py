@@ -4,11 +4,13 @@ BDD step definitions — FS-71 brochure link lookup.
 Offline throughout. Every scenario runs twice (association order ascending and
 descending) because HubSpot documents no ordering and the lookup must not care.
 """
+import asyncio
 import logging
 import os
 import re
 import sys
 from collections.abc import MutableMapping
+from io import StringIO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -20,14 +22,18 @@ from app.services import brochures
 from app.services.brochures import (
     BrochureLinkSource,
     FakeBrochureLinkSource,
-    HubSpotAuthError,
+    HubspotAuthError,
     HubSpotBrochureLinkSource,
     HubSpotRestReader,
+    aget_brochure_link,
+    aget_listing_document_link,
     get_brochure_link_source,
     get_listing_document_link,
 )
 from app.services.brochures import hubspot as hubspot_module
-from app.services.hubspot_service import HUBSPOT_BASE, HubSpotError
+from app.services.brochures.__main__ import main as probe_main
+from app.services.hubspot_registration import HubspotError, HubspotTimeoutError
+from app.services.hubspot_service import HUBSPOT_BASE
 from tests.support.fake_hubspot import (
     ADDRESS, FakeHubSpot, RestTransport, default_filename, marker_body,
 )
@@ -60,8 +66,12 @@ class Ctx:
         self.caplog = caplog
         self.result = None
         self.error = None
-        self.expected_error = HubSpotError
+        self.expected_error = HubspotError
         self.transport = None
+        self.sleeps = []                    # every wait the REST reader asked for
+        self.exit_code = None               # probe CLI
+        self.stdout = StringIO()
+        self.stderr = StringIO()
         self.rest_kwargs = {}
         self.modules_before = set()
         self.modules_after = set()
@@ -91,9 +101,10 @@ def ctx(assoc_order, caplog):
     return Ctx(assoc_order, caplog)
 
 
-def _rest_reader(transport, **kw):
+def _rest_reader(ctx, transport):
+    ctx.transport = transport
     client = httpx.Client(base_url=HUBSPOT_BASE, transport=httpx.MockTransport(transport))
-    return HubSpotRestReader(token=RestTransport.TOKEN, client=client, sleep=lambda s: None, **kw)
+    return HubSpotRestReader(token=RestTransport.TOKEN, client=client, sleep=ctx.sleeps.append)
 
 
 def _run(ctx):
@@ -150,10 +161,16 @@ def g_no_notes(ctx):
     pass
 
 
-@given("a listing with a brochure note whose file access is PRIVATE")
-def g_private(ctx):
+@given(parsers.parse("a listing with a brochure note whose file access is {access}"))
+def g_access(ctx, access):
     n = ctx.add_note("brochure")
-    ctx.fake.files[n.file_id]["access"] = "PRIVATE"
+    ctx.fake.files[n.file_id]["access"] = access
+
+
+@given("a listing with a brochure note whose file has no access value")
+def g_no_access(ctx):
+    n = ctx.add_note("brochure")
+    del ctx.fake.files[n.file_id]["access"]
 
 
 @given("any listing")
@@ -254,18 +271,34 @@ def g_gone(ctx):
 
 @given(parsers.parse("the HubSpot client returns {status:d}"))
 def g_status(ctx, status):
-    ctx.reader = _rest_reader(RestTransport(always=status))
-    ctx.expected_error = HubSpotAuthError if status in (401, 403) else HubSpotError
+    ctx.reader = _rest_reader(ctx, RestTransport(always=status))
+    ctx.expected_error = HubspotAuthError if status in (401, 403) else HubspotError
 
 
-@given(parsers.parse("HubSpot answers {status:d} to the first {n:d} requests"))
-def g_fail_first(ctx, status, n):
-    ctx.transport = RestTransport(ctx.fake, fail_first=(status, n))
+@given(parsers.parse("HubSpot answers {status:d} to the first request"))
+def g_fail_first_once(ctx, status):
+    ctx.transport = RestTransport(ctx.fake, fail_first=(status, 1))
+
+
+@given(parsers.parse("HubSpot answers {status:d} to the first request with a Retry-After of {secs:d} seconds"))
+def g_fail_first_retry_after(ctx, status, secs):
+    ctx.transport = RestTransport(ctx.fake, fail_first=(status, 1), retry_after=str(secs))
 
 
 @given(parsers.parse("HubSpot answers {status:d} to every request"))
 def g_always(ctx, status):
     ctx.transport = RestTransport(ctx.fake, always=status)
+
+
+@given("HubSpot times out on every request")
+def g_timeout(ctx):
+    ctx.transport = RestTransport(ctx.fake, raises=httpx.ReadTimeout("timed out"))
+    ctx.expected_error = HubspotTimeoutError
+
+
+@given("HubSpot drops the connection on every request")
+def g_dropped(ctx):
+    ctx.transport = RestTransport(ctx.fake, raises=httpx.ConnectError("connection reset"))
 
 
 # ---------------------------------------------------------------- When
@@ -277,9 +310,37 @@ def w_request(ctx):
 
 @when("the brochure link is requested through the REST reader")
 def w_request_rest(ctx):
-    ctx.transport = ctx.transport or RestTransport(ctx.fake)
-    ctx.reader = _rest_reader(ctx.transport)
+    ctx.reader = _rest_reader(ctx, ctx.transport or RestTransport(ctx.fake))
     _run(ctx)
+
+
+@when("the brochure link is requested asynchronously")
+def w_request_async(ctx):
+    ctx.modules_before = set(sys.modules)
+    try:
+        ctx.result = asyncio.run(aget_listing_document_link(ctx.reader, LISTING, "brochure"))
+    except Exception as exc:                       # noqa: BLE001
+        ctx.error, ctx.result = exc, None
+    ctx.modules_after = set(sys.modules)
+
+
+@when("the brochure link is requested asynchronously through the alias")
+def w_request_async_alias(ctx):
+    try:
+        ctx.result = asyncio.run(aget_brochure_link(ctx.reader, LISTING))
+    except Exception as exc:                       # noqa: BLE001
+        ctx.error, ctx.result = exc, None
+
+
+@when("the probe is run for the listing")
+def w_probe(ctx):
+    ctx.exit_code = probe_main([LISTING], reader=ctx.reader, out=ctx.stdout, err=ctx.stderr)
+
+
+@when("the probe is run for the listing through the REST reader")
+def w_probe_rest(ctx):
+    ctx.reader = _rest_reader(ctx, ctx.transport or RestTransport(ctx.fake))
+    ctx.exit_code = probe_main([LISTING], reader=ctx.reader, out=ctx.stdout, err=ctx.stderr)
 
 
 # ---------------------------------------------------------------- Then: results
@@ -386,8 +447,79 @@ def t_info_listing(ctx):
 
 
 @then(parsers.parse("{n:d} requests were attempted"))
+@then(parsers.parse("{n:d} request was attempted"))
 def t_attempts(ctx, n):
-    assert len(ctx.transport.requests) == n
+    assert len(ctx.transport.requests) == n, [(r.method, r.url.path) for r in ctx.transport.requests]
+
+
+@then(parsers.parse("the wait before the retry was {secs:d}s"))
+def t_wait(ctx, secs):
+    assert ctx.sleeps == [float(secs)], ctx.sleeps
+
+
+@then("the retry came without a wait")
+def t_no_wait(ctx):
+    assert ctx.sleeps == [], ctx.sleeps
+
+
+@then(parsers.parse("the error carries status {status:d}"))
+def t_error_status(ctx, status):
+    assert ctx.error is not None and ctx.error.status_code == status, repr(ctx.error)
+
+
+@then("the error is a timeout")
+def t_error_timeout(ctx):
+    assert isinstance(ctx.error, HubspotTimeoutError), repr(ctx.error)
+
+
+@then("the error is not a timeout")
+def t_error_not_timeout(ctx):
+    assert not isinstance(ctx.error, HubspotTimeoutError), repr(ctx.error)
+
+
+@then(parsers.parse("a warning is logged naming the access value {access}"))
+def t_warning_access(ctx, access):
+    assert any(access in r.getMessage() for r in _records(ctx, logging.WARNING)), \
+        [r.getMessage() for r in ctx.caplog.records]
+
+
+@then("the access check is a fail-closed allow-list")
+def t_allow_list(ctx):
+    # HubSpot's Files API has eight values; only the two public ones may pass.
+    assert hubspot_module.PUBLISHABLE_ACCESS == {"PUBLIC_NOT_INDEXABLE", "PUBLIC_INDEXABLE"}
+
+
+@then("the probe exits 0 and prints only the url")
+def t_probe_found(ctx):
+    assert ctx.exit_code == 0, (ctx.exit_code, ctx.stderr.getvalue())
+    assert ctx.stdout.getvalue().strip() == ctx.url(ctx.notes[0])
+    assert ctx.stdout.getvalue().count("\n") == 1, "stdout must carry the url and nothing else"
+
+
+@then("the probe exits 1 and prints nothing on stdout")
+def t_probe_none(ctx):
+    assert ctx.exit_code == 1, (ctx.exit_code, ctx.stderr.getvalue())
+    assert ctx.stdout.getvalue() == ""
+    assert "normal answer" in ctx.stderr.getvalue()
+
+
+@then("the probe exits 2 and reports an auth error")
+def t_probe_auth(ctx):
+    assert ctx.exit_code == 2, ctx.exit_code
+    assert ctx.stdout.getvalue() == ""
+    assert "AUTH ERROR" in ctx.stderr.getvalue() and "403" in ctx.stderr.getvalue()
+
+
+@then("the probe exits 2 and reports an error")
+def t_probe_error(ctx):
+    assert ctx.exit_code == 2, ctx.exit_code
+    assert ctx.stdout.getvalue() == ""
+    assert ctx.stderr.getvalue().startswith("ERROR")
+
+
+@then("the probe never prints the token")
+def t_probe_no_token(ctx):
+    assert RestTransport.TOKEN not in ctx.stdout.getvalue() + ctx.stderr.getvalue()
 
 
 # ---------------------------------------------------------------- Then: no Google
