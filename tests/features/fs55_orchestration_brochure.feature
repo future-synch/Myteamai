@@ -4,15 +4,18 @@ Feature: FS-55 orchestration — brochure step (c)
   So that composition receives the URLs as data, without ever being
   the thing that reaches out to HubSpot or (never) Google Drive
 
-  # Verbatim from §"New Gherkin — orchestration of the brochure step" of
-  # the FS-55 ticket (revised 20 October 2026). The last scenario looks
+  # Adapted from §"New Gherkin — orchestration of the brochure step" of
+  # the FS-55 ticket (revised 20 October 2026). The orchestrator now takes
+  # an injected BrochureLinkSource (FS-71 seam) rather than importing the
+  # brochure function by name, so the Background installs a fake source
+  # instead of monkey-patching a module attribute. The last scenario looks
   # pedantic and is not: if composition is ever called first, someone has
   # moved link resolution inside it, which breaks FS-57's offline
   # guarantee.
 
   Background:
     Given registration succeeds for the submitted applicant
-    And brochure resolution is swapped for a spy
+    And a fake brochure source is installed
     And composition is swapped for a spy
 
   Scenario: Brochure links are resolved for every matched listing
@@ -49,6 +52,7 @@ Feature: FS-55 orchestration — brochure step (c)
     Then the applicant id is returned
     And the matches are returned
     And the composed message is returned successfully
+    And an error is logged at error level for each failed listing
 
   Scenario: Brochure links are resolved before composition is called
     Given an applicant registers successfully

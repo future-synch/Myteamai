@@ -6,6 +6,7 @@ All 6 bot function implementations.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import logging
@@ -29,7 +30,7 @@ from app.services.hubspot_registration import (
     register_applicant_in_hubspot,
 )
 from app.services.hubspot_client import build_hubspot_client
-from app.services.listing_document import get_brochure_link
+from app.services.brochures import BrochureLinkSource, get_brochure_link_source
 from app.services.matching import find_matching_listings
 from app.services.transports.gmail import create_draft
 
@@ -437,6 +438,7 @@ def _compose_welcome_draft(
 async def fn_register_applicant(
     req: RegisterApplicantRequest,
     agent_name: Optional[str] = None,
+    source: Optional[BrochureLinkSource] = None,
 ) -> RegisterApplicantResponse:
     """
     FS-55 five-step orchestrator (A-2 rev 4, pending publish). This function
@@ -446,9 +448,13 @@ async def fn_register_applicant(
 
         a. register_applicant_in_hubspot()  — FS-50, writes the contact
         b. find_matching_listings()         — FS-70, reads listings
-        c. get_brochure_link() per match    — FS-71, reads a brochure URL
+        c. source.get_brochure_link(id)     — FS-71, injected BrochureLinkSource
         d. _compose_welcome_draft()         — FS-57, composes text only
         e. create_draft()                   — FS-42, gated by dispatch=True
+
+    source (FS-71): the BrochureLinkSource step (c) delegates to. Built once
+    per request via get_brochure_link_source() when not supplied. Tests pass
+    FakeBrochureLinkSource; production reads BROCHURE_LINK_SOURCE from env.
 
     agent_name (FS-57): the signed-in agent's display name for the welcome
     sign-off; falls back to "The Curtis Sloane team" when None.
@@ -456,6 +462,8 @@ async def fn_register_applicant(
     errors: List[str] = []
     criteria = _request_to_criteria(req)
     hs_client = build_hubspot_client()
+    if source is None:
+        source = get_brochure_link_source()
 
     # ---- Step a: register in HubSpot — ALWAYS. Validation or step-a failure
     # returns early; steps b/c/d/e never run. -----------------------------
@@ -490,15 +498,22 @@ async def fn_register_applicant(
 
     # ---- Step c: brochure link per matched listing — ALWAYS; isolated
     # per listing. A None from the delegate is normal (confidential listing,
-    # or no brochure ingested yet); it is not a failure and is not logged
-    # as one. A raised exception for one listing never affects the others
-    # and never discards the registration. --------------------------------
+    # or no brochure ingested yet) and is NOT logged above INFO. A raised
+    # exception for one listing is logged at ERROR with the listing id and
+    # exception class, that match gets brochure_url=None, and the
+    # registration is not discarded. The lookup is synchronous per FS-71's
+    # signature; asyncio.to_thread keeps it off the event loop. ----------
     for match in first_matches:
         listing_id = match.get("id") or match.get("listing_id")
         try:
-            match["brochure_url"] = await get_brochure_link(hs_client, listing_id)
+            match["brochure_url"] = await asyncio.to_thread(
+                source.get_brochure_link, listing_id
+            )
         except Exception as exc:
-            log.warning("Step c (brochure) failed for listing %s: %s", listing_id, exc)
+            log.error(
+                "Step c (brochure) failed for listing %s: %s",
+                listing_id, exc.__class__.__name__,
+            )
             match["brochure_url"] = None
 
     # ---- Step d: welcome composition — ALWAYS; isolated. ---------------
