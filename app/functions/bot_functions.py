@@ -355,6 +355,33 @@ def _brochure_url(match: dict) -> Optional[str]:
     return None
 
 
+_BUTTON_BG = "#1A1A1A"
+_BUTTON_BORDER = "#8A8A8A"   # mid-tone border so the button survives a client-darkened background
+
+
+def _brochure_button_html(url: str, address: Optional[str]) -> str:
+    """The FS-57 'View brochure' button: a single-cell presentation table with the
+    colour on the <td> as a bgcolor attribute (Outlook for Windows ignores CSS
+    backgrounds and padding on inline elements, so a bare styled <a> would arrive
+    as plain blue underlined text). aria-label carries the address so three
+    buttons that all read 'View brochure' stay distinguishable to a screen reader.
+    The url is escaped for an attribute and otherwise used exactly as supplied."""
+    label = f"View brochure for {address}" if address else "View brochure"
+    return (
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        'style="margin:16px 0;"><tr>'
+        f'<td align="center" bgcolor="{_BUTTON_BG}" '
+        f'style="border-radius:4px;border:1px solid {_BUTTON_BORDER};">'
+        f'<a href="{html.escape(url, quote=True)}" target="_blank" '
+        f'aria-label="{html.escape(label, quote=True)}" '
+        'style="display:inline-block;padding:12px 24px;'
+        'font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;'
+        'font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:4px;">'
+        'View brochure</a>'
+        '</td></tr></table>'
+    )
+
+
 def _render_welcome_email(
     *,
     first_name: Optional[str],
@@ -430,9 +457,14 @@ def _render_welcome_email(
         html_blocks.append(f"<p>{html.escape(holding)}</p>")
     else:
         html_blocks.append(f"<p>{html.escape(lead)}</p>")
-        html_blocks.append(
-            "<ol>" + "".join(f"<li>{html.escape(c)}</li>" for c in contents) + "</ol>"
-        )
+        items: List[str] = []
+        for c, m in zip(contents, matches):
+            item = html.escape(c)
+            url = _brochure_url(m)
+            if url:
+                item += _brochure_button_html(url, m.get("address"))
+            items.append(f"<li>{item}</li>")
+        html_blocks.append("<ol>" + "".join(items) + "</ol>")
         html_blocks.append(f"<p>{html.escape(closing)}</p>")
     html_blocks.append(signoff_html)
     html_body = "".join(html_blocks)
