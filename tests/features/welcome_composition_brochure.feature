@@ -97,3 +97,25 @@ Feature: Brochure links in the welcome email (FS-57, "Brochure buttons")
     Given a matched listing "105 Pine Street" without a brochure link
     When the welcome email is rendered with logging captured
     Then nothing was logged
+
+  # -------------------------------------------------------------------------
+  # Layout — as in the sample email: details on the left, the button on the right
+  # -------------------------------------------------------------------------
+
+  Scenario: A listing with a brochure link is a row with its details on the left and the button on the right
+    Given a matched listing "105 Pine Street" with the brochure link "https://files.example.test/105-pine-street-brochure.pdf"
+    When the welcome email is rendered
+    Then the listing is a full-width presentation row of exactly two cells
+    And the left cell holds the listing details and no button
+    And the right cell is right-aligned and holds the button
+
+  Scenario: Each listing with a link is its own row carrying its own details
+    Given three matched listings where the first and third have brochure links
+    When the welcome email is rendered
+    Then there are exactly 2 listing rows
+    And each row's left cell holds its own listing's details
+
+  Scenario: A listing without a link stays a plain list item with no table
+    Given a matched listing "105 Pine Street" without a brochure link
+    When the welcome email is rendered
+    Then the html body contains no table

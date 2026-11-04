@@ -62,11 +62,12 @@ class _Doc(HTMLParser):
         self._cur = None
 
     def handle_starttag(self, tag, attrs):
-        el = {"tag": tag, "attrs": dict(attrs), "cells": 0}
+        el = {"tag": tag, "attrs": dict(attrs), "cells": 0, "tds": [], "text": ""}
         if tag == "td":
             for parent in reversed(self.stack):
                 if parent["tag"] == "table":
                     parent["cells"] += 1
+                    parent["tds"].append(el)
                     break
         if tag == "a":
             self._cur = {"attrs": dict(attrs), "text": "", "ancestors": list(self.stack)}
@@ -85,6 +86,9 @@ class _Doc(HTMLParser):
     def handle_data(self, data):
         if self._cur is not None:
             self._cur["text"] += data
+        for el in self.stack:
+            if el["tag"] == "td":
+                el["text"] += data
 
 
 def _doc(ctx):
@@ -107,6 +111,19 @@ def _nearest(anchor, tag):
 
 def _raw_html(ctx):
     return ctx.rendered["html_body"]
+
+
+def _row_of(anchor):
+    """The listing row: the table enclosing the button's own table."""
+    tables = [el for el in anchor["ancestors"] if el["tag"] == "table"]
+    assert len(tables) >= 2, "button is not nested in a listing row table"
+    return tables[-2]
+
+
+def _details(match):
+    price = match["price_gbp"]
+    beds = match["bedrooms"]
+    return f"{match['address']}, £{price:,}, {beds} bedroom{'' if beds == 1 else 's'}"
 
 
 class Ctx:
@@ -328,3 +345,48 @@ def then_raw_no_hostile_address(ctx):
 @then("nothing was logged")
 def then_nothing_logged(ctx):
     assert ctx.log_records == [], f"unexpected log records: {[r.getMessage() for r in ctx.log_records]}"
+
+
+# ---------------------------------------------------------------------------
+# Then — layout
+# ---------------------------------------------------------------------------
+
+@then("the listing is a full-width presentation row of exactly two cells")
+def then_row_shape(ctx):
+    row = _row_of(_buttons(ctx)[0])
+    assert row["attrs"].get("role") == "presentation", row["attrs"]
+    assert row["attrs"].get("width") == "100%", row["attrs"]
+    assert len(row["tds"]) == 2, f"row has {len(row['tds'])} cells, expected 2"
+
+
+@then("the left cell holds the listing details and no button")
+def then_left_cell(ctx):
+    left = _row_of(_buttons(ctx)[0])["tds"][0]
+    assert left["text"].strip() == _details(ctx.matches[0]), left["text"]
+    assert BUTTON_TEXT not in left["text"]
+
+
+@then("the right cell is right-aligned and holds the button")
+def then_right_cell(ctx):
+    button = _buttons(ctx)[0]
+    right = _row_of(button)["tds"][1]
+    assert right["attrs"].get("align") == "right", right["attrs"]
+    assert any(el is right for el in button["ancestors"]), "button is not inside the right cell"
+
+
+@then(parsers.parse("there are exactly {n:d} listing rows"))
+def then_row_count(ctx, n):
+    rows = [_row_of(b) for b in _buttons(ctx)]
+    assert len(rows) == n and len({id(r) for r in rows}) == n, f"expected {n} distinct rows, got {len(rows)}"
+
+
+@then("each row's left cell holds its own listing's details")
+def then_rows_own_details(ctx):
+    rows = [_row_of(b) for b in _buttons(ctx)]
+    expected = [_details(ctx.matches[0]), _details(ctx.matches[2])]
+    assert [r["tds"][0]["text"].strip() for r in rows] == expected
+
+
+@then("the html body contains no table")
+def then_no_table(ctx):
+    assert "<table" not in _raw_html(ctx).lower(), _raw_html(ctx)
