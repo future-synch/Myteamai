@@ -27,3 +27,73 @@ Feature: Brochure links in the welcome email (FS-57, "Brochure buttons")
     When the welcome email is rendered
     Then the text body shows each link under its own listing only
     And the text body still has exactly 3 numbered listing lines
+
+  # -------------------------------------------------------------------------
+  # HTML body — the button
+  # -------------------------------------------------------------------------
+
+  Scenario: A listing with a brochure link renders one button
+    Given a matched listing "105 Pine Street" with the brochure link "https://files.example.test/105-pine-street-brochure.pdf"
+    When the welcome email is rendered
+    Then the html body contains exactly 1 brochure button
+    And the button text is "View brochure"
+    And the button href equals the supplied link
+    And the button sits in a single-cell presentation table
+    And the button cell carries a bgcolor attribute
+    And the button cell has a visible border
+    And the button's aria-label names the listing address
+
+  Scenario: A listing without a brochure link renders no button and no substitute text
+    Given a matched listing "105 Pine Street" without a brochure link
+    When the welcome email is rendered
+    Then the html body contains exactly 0 brochure buttons
+    And the html body contains no text about a brochure
+    And the listing address still appears in the html body
+
+  Scenario: Mixed listings render one button each where available
+    Given three matched listings where the first and third have brochure links
+    When the welcome email is rendered
+    Then the html body contains exactly 2 brochure buttons
+    And each button href equals its own listing's link
+    And every listing address still appears in the html body
+
+  Scenario: An empty brochure link is treated as no brochure
+    Given a matched listing "105 Pine Street" whose brochure link is empty
+    When the welcome email is rendered
+    Then the html body contains exactly 0 brochure buttons
+    And the html body contains no text about a brochure
+    And the text body contains no brochure line
+
+  Scenario: Addresses are never turned into links
+    Given three matched listings where the first and third have brochure links
+    When the welcome email is rendered
+    Then the html body contains no link other than the brochure buttons
+
+  # -------------------------------------------------------------------------
+  # Escaping and fidelity
+  # -------------------------------------------------------------------------
+
+  Scenario: The brochure link is escaped in the href, not trusted
+    Given a matched listing "105 Pine Street" with a brochure link containing quotes, an ampersand and angle brackets
+    When the welcome email is rendered
+    Then the raw html body does not contain the unescaped link
+    And the raw html body contains the escaped link
+    And the button href equals the supplied link
+    And the html body contains exactly 1 brochure button
+
+  Scenario: The brochure link is rendered exactly as supplied
+    Given a matched listing "105 Pine Street" with the brochure link "https://files.example.test/b.pdf?download=1&utm=a%20b"
+    When the welcome email is rendered
+    Then the button href equals the supplied link
+    And the text body contains the supplied link unchanged
+
+  Scenario: The address in the aria-label is escaped too
+    Given a matched listing with a hostile address and a brochure link
+    When the welcome email is rendered
+    Then the raw html body does not contain the unescaped hostile address
+    And the button's aria-label names the listing address
+
+  Scenario: Nothing is logged for a listing without a brochure
+    Given a matched listing "105 Pine Street" without a brochure link
+    When the welcome email is rendered with logging captured
+    Then nothing was logged
