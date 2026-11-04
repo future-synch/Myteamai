@@ -12,6 +12,8 @@ import pytest
 
 # Force mock Claude before app modules are imported by step def files.
 os.environ.setdefault("ANTHROPIC_MODE", "mock")
+# FS-71: every automated test runs against the in-memory brochure source — no network.
+os.environ.setdefault("BROCHURE_LINK_SOURCE", "fake")
 
 
 # ---------------------------------------------------------------------------

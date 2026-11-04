@@ -13,6 +13,12 @@ services:
         sync: false
       - key: HUBSPOT_API_KEY
         sync: false
+      # FS-71: brochure links are read from HubSpot. Explicit rather than inferred from
+      # HUBSPOT_API_KEY; an unrecognised value raises when the source is built instead of
+      # silently meaning "no brochures". Nothing builds it until FS-55 wires it in.
+      # The HubSpot token also needs listings, notes and files READ scopes.
+      - key: BROCHURE_LINK_SOURCE
+        value: hubspot
       - key: JWT_SECRET
         generateValue: true
       - key: ENV
