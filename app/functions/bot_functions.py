@@ -342,6 +342,19 @@ def _listing_content(match: dict) -> str:
     return line
 
 
+def _brochure_url(match: dict) -> Optional[str]:
+    """The listing's brochure link, exactly as the orchestrator supplied it
+    (FS-71 resolves it, FS-55 step c sets match["brochure_url"]), or None.
+
+    None / missing / empty all mean "no brochure": the normal, deliberate state
+    for a confidential listing. Composition never looks a link up, never builds
+    one and never rewrites one."""
+    url = match.get("brochure_url")
+    if isinstance(url, str) and url.strip():
+        return url
+    return None
+
+
 def _render_welcome_email(
     *,
     first_name: Optional[str],
@@ -392,7 +405,16 @@ def _render_welcome_email(
         text_blocks.append(holding)
     else:
         text_blocks.append(lead)
-        text_blocks.append("\n".join(f"{i}. {c}" for i, c in enumerate(contents, 1)))
+        # A brochure link sits indented under its own numbered line (so it is
+        # never itself a numbered listing line). A button cannot render in plain
+        # text, so the bare url is the only way this part gets to the brochure.
+        text_lines: List[str] = []
+        for i, (c, m) in enumerate(zip(contents, matches), 1):
+            text_lines.append(f"{i}. {c}")
+            url = _brochure_url(m)
+            if url:
+                text_lines.append(f"   View brochure: {url}")
+        text_blocks.append("\n".join(text_lines))
         text_blocks.append(closing)
     text_blocks.append(signoff)
     text_body = "\n\n".join(text_blocks)
