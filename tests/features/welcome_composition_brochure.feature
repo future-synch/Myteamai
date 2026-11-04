@@ -119,3 +119,15 @@ Feature: Brochure links in the welcome email (FS-57, "Brochure buttons")
     Given a matched listing "105 Pine Street" without a brochure link
     When the welcome email is rendered
     Then the html body contains no table
+
+  # -------------------------------------------------------------------------
+  # The seam: a link set on a match by the orchestrator reaches the draft
+  # -------------------------------------------------------------------------
+
+  Scenario: A link set on a match reaches the welcome draft through the register endpoint
+    Given the register endpoint is served by offline fakes
+    And matching returns three listings, the first with a brochure link and all carrying internal fields
+    When the applicant is registered through the endpoint
+    Then the welcome draft html has exactly 1 brochure button for that link
+    And the welcome draft text body shows that link under listing 1
+    And no internal match field appears in the welcome draft

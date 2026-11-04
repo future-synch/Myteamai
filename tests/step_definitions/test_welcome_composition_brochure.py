@@ -13,7 +13,7 @@ Pinned decisions (FS-57 ticket, "Brochure buttons"):
     numbered line, indented, so it is never itself a numbered listing line
   - the url is rendered exactly as supplied (no rewriting, no tracking params)
 """
-import sys, os, re, html, logging
+import sys, os, re, html, logging, itertools
 from html.parser import HTMLParser
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -21,7 +21,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
 
+from fastapi.testclient import TestClient
+
+from app.main import app
 import app.functions.bot_functions as bot_functions
+from app.services.hubspot_registration import RegistrationResult
 
 scenarios("../features/welcome_composition_brochure.feature")
 
@@ -126,10 +130,18 @@ def _details(match):
     return f"{match['address']}, £{price:,}, {beds} bedroom{'' if beds == 1 else 's'}"
 
 
+client = TestClient(app)
+_id_seq = itertools.count(start=9501)
+AGENT_EMAIL = "agent@curtissloane.com"
+AGENT_PASSWORD = "agent123"
+E2E_URL = "https://files.example.test/e2e-brochure.pdf"
+
+
 class Ctx:
     def __init__(self):
         self.matches = []
         self.rendered = None
+        self.response = None
 
 
 @pytest.fixture
@@ -390,3 +402,71 @@ def then_rows_own_details(ctx):
 @then("the html body contains no table")
 def then_no_table(ctx):
     assert "<table" not in _raw_html(ctx).lower(), _raw_html(ctx)
+
+
+# ---------------------------------------------------------------------------
+# The seam, through the real endpoint (registration and matching are offline fakes)
+# ---------------------------------------------------------------------------
+
+@given("the register endpoint is served by offline fakes")
+def given_endpoint_fakes(ctx, monkeypatch):
+    async def fake_register(criteria, hs_client):
+        return RegistrationResult(contact_id=str(next(_id_seq)), created=True)
+
+    monkeypatch.setattr(bot_functions, "register_applicant_in_hubspot", fake_register)
+    ctx.monkeypatch = monkeypatch
+
+
+@given("matching returns three listings, the first with a brochure link and all carrying internal fields")
+def given_endpoint_matches(ctx):
+    def internal(m, pid):
+        m.update({"property_id": pid, "match_score": 0.87,
+                  "match_reason": "INTERNAL-REASON-XYZ", "notes": "SECRET-NOTE-LEAK"})
+        return m
+
+    matches = [
+        internal(_match("105 Pine Street", brochure_url=E2E_URL), "PROP-SECRET-1"),
+        internal(_match("22 Oak Lane", 910_000, 3), "PROP-SECRET-2"),
+        internal(_match("8 Birch Mews", 1_010_000, 2), "PROP-SECRET-3"),
+    ]
+
+    async def fake_matching(criteria, limit=3):
+        return [dict(m) for m in matches]
+
+    ctx.monkeypatch.setattr(bot_functions, "find_matching_listings", fake_matching)
+    ctx.matches = matches
+
+
+@when("the applicant is registered through the endpoint")
+def when_registered_endpoint(ctx):
+    login = client.post("/auth/login", json={"email": AGENT_EMAIL, "password": AGENT_PASSWORD})
+    headers = {"Authorization": f"Bearer {login.json().get('access_token', '')}"}
+    body = {
+        "full_name": "Sarah Chen", "email": "sarah.chen@example.com", "phone": "07700900123",
+        "budget_gbp": 2_000_000, "bedrooms_min": 2, "property_types": ["house"],
+        "financing": "cash", "preferred_channel": "email", "source": "Referral",
+    }
+    ctx.response = client.post("/bot/register-applicant", json=body, headers=headers)
+    assert ctx.response.status_code == 200, ctx.response.text
+    assert ctx.response.json().get("status") == "ok", ctx.response.text
+    ctx.rendered = ctx.response.json()["welcome_draft"]
+
+
+@then("the welcome draft html has exactly 1 brochure button for that link")
+def then_endpoint_button(ctx):
+    found = _buttons(ctx)
+    assert len(found) == 1, f"expected 1 button, got {len(found)}"
+    assert found[0]["attrs"].get("href") == E2E_URL
+
+
+@then("the welcome draft text body shows that link under listing 1")
+def then_endpoint_text(ctx):
+    assert _line_after_listing(_text(ctx), 1) == f"View brochure: {E2E_URL}"
+
+
+@then("no internal match field appears in the welcome draft")
+def then_endpoint_no_internal(ctx):
+    body = _raw_html(ctx) + "\n" + _text(ctx)
+    for sentinel in ("0.87", "INTERNAL-REASON-XYZ", "SECRET-NOTE-LEAK",
+                     "PROP-SECRET-1", "PROP-SECRET-2", "PROP-SECRET-3"):
+        assert sentinel not in body, f"non-allowlisted field leaked into the draft: {sentinel!r}"
