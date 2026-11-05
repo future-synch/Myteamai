@@ -133,7 +133,13 @@ class RegisterApplicantRequest(BaseModel):
     budget_gbp: int = Field(ge=1, validation_alias=AliasChoices("budget", "budget_gbp"))
     bedrooms_min: int = Field(ge=1)
     # TS Section 5.2: valid property types include "any"
-    property_types: List[Literal["house", "flat", "maisonette", "any"]]
+    # FS-67: canonical values are house/apartment/maisonette/mews/penthouse/
+    # townhouse. Legacy "flat"/"any" are still ACCEPTED at the API boundary and
+    # normalised before the HubSpot write (flat -> apartment, any -> skip).
+    property_types: List[Literal[
+        "house", "apartment", "maisonette", "mews", "penthouse", "townhouse",
+        "flat", "any",
+    ]]
     # TS Section 5.2: financing enum (confirmed with John 16 April 2026)
     financing: Literal["cash", "mortgage_aip", "mortgage_no_aip", "unknown"]
     preferred_channel: Literal["email", "phone", "whatsapp"]
@@ -141,14 +147,32 @@ class RegisterApplicantRequest(BaseModel):
     bedrooms_max: Optional[int] = None
     must_have: Optional[str] = None
     timeline_weeks: Optional[int] = None
+    # FS-55 (A-2 rev 5): gates step d (draft creation) only. Composition
+    # (step c) always runs. dispatch-flag removal from the welcome path is FS-57.
+    dispatch: bool = False
+
+
+class WelcomeDraft(BaseModel):
+    subject: str
+    html_body: str
+    text_body: str
+
+
+class DraftRef(BaseModel):
+    transport: Literal["gmail", "fake"]
+    draft_id: str
+    mailbox: str
 
 
 class RegisterApplicantResponse(BaseModel):
+    # A-2 rev 5 envelope. kyc_checklist and hubspot_contact_id intentionally
+    # removed — KYC is no longer part of registration output (FS-55).
     status: str
     applicant_id: Optional[str] = None
-    hubspot_contact_id: Optional[str] = None
-    kyc_checklist: Optional[dict] = None
-    first_matches: Optional[List[dict]] = None
+    first_matches: List[dict] = Field(default_factory=list)
+    welcome_draft: Optional[WelcomeDraft] = None
+    draft_ref: Optional[DraftRef] = None
+    errors: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +220,7 @@ class MatchApplicantsResponse(BaseModel):
 class ValuationBriefRequest(BaseModel):
     address: str
     postcode: str
-    property_type: Literal["house", "flat", "maisonette"]
+    property_type: Literal["house", "townhouse", "apartment", "maisonette", "mews", "penthouse"]
     bedrooms: int = Field(ge=0)
     condition: Optional[Literal["excellent", "good", "fair", "needs_work"]] = None
     sqft: Optional[int] = None

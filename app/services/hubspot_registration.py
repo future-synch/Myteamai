@@ -30,6 +30,7 @@ from typing import Any, Protocol
 from app.constants.registration_constants import (
     DEV_PORTAL_ID,
     ENUM_SETS,
+    FORBIDDEN_PORTAL_IDS,
     MULTI_VALUE_FIELDS,
     OPTIONAL_FIELDS,
     PROD_PORTAL_ID,
@@ -253,8 +254,13 @@ def _map_to_hubspot_properties(criteria: dict[str, Any]) -> dict[str, Any]:
 
 async def _verify_tenant(client: HubspotClient) -> int:
     """
-    §8: verify the client is bound to the dev portal BEFORE any write.
-    Refuse writes to production or any unrecognised portal.
+    §8: verify the client is bound to a permitted portal BEFORE any write.
+
+    Guard order (deny-list first, never overridable by any env var):
+      (1) portal in FORBIDDEN_PORTAL_IDS -> TENANT_PRODUCTION_REFUSED
+      (2) DEV_PORTAL_ID unset (None)     -> TENANT_UNRECOGNISED (fail closed)
+      (3) portal == DEV_PORTAL_ID        -> allow
+      (4) otherwise                      -> TENANT_UNRECOGNISED
     """
     try:
         info = await client.get_portal_info()
@@ -265,17 +271,27 @@ async def _verify_tenant(client: HubspotClient) -> int:
         )
 
     portal_id = info.get("portalId")
-    if portal_id == DEV_PORTAL_ID:
-        return portal_id
-    if portal_id == PROD_PORTAL_ID:
+    # (1) Deny-list wins over everything — even if DEV_PORTAL_ID were set to it.
+    if portal_id in FORBIDDEN_PORTAL_IDS:
         raise RegistrationError(
-            f"Writes to Curtis Sloane production tenant ({PROD_PORTAL_ID}) "
-            f"are prohibited under FS-25.",
+            f"Writes to the production tenant (portal {portal_id}) are "
+            f"prohibited under FS-25 — deny-list, not overridable by any env var.",
             code="TENANT_PRODUCTION_REFUSED",
         )
+    # (2) Fail closed: with no configured dev tenant, refuse every write.
+    if DEV_PORTAL_ID is None:
+        raise RegistrationError(
+            "DEV_PORTAL_ID not configured — refusing all writes (fail-closed). "
+            "Set DEV_PORTAL_ID to the portal your token resolves to.",
+            code="TENANT_UNRECOGNISED",
+        )
+    # (3) Allow the configured dev tenant.
+    if portal_id == DEV_PORTAL_ID:
+        return portal_id
+    # (4) Anything else is unrecognised.
     raise RegistrationError(
         f"Writes to unrecognised portal {portal_id} are refused. "
-        f"Only dev portal {DEV_PORTAL_ID} is allowed.",
+        f"Only DEV_PORTAL_ID={DEV_PORTAL_ID} is allowed.",
         code="TENANT_UNRECOGNISED",
     )
 

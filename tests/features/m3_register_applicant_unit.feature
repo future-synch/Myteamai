@@ -6,7 +6,7 @@ Feature: Register an applicant in HubSpot
 
   Background:
     Given a fake HubSpot client with no network access
-    And the fake client is bound to portal 148226118
+    And the fake client is bound to the DEV_PORTAL_ID
     And the canonical enum constants module is loaded
     And a valid applicant payload
 
@@ -153,8 +153,8 @@ Feature: Register an applicant in HubSpot
       | source            |
 
   Scenario: Enum comparison is exact, not case-insensitive
-    Given the configured option set for "property_types" contains "flat"
-    When the applicant is registered with property_types "Flat"
+    Given the configured option set for "property_types" contains "apartment"
+    When the applicant is registered with property_types "Apartment"
     Then the registration is rejected
     And no contact is created in HubSpot
 
@@ -294,7 +294,7 @@ Feature: Register an applicant in HubSpot
     And the error states that writes to the production tenant are prohibited
 
   Scenario: A write to an unrecognised portal is refused
-    Given the client is bound to a portal that is neither 148226118 nor 143653372
+    Given the client is bound to a portal that is neither the DEV_PORTAL_ID nor 143653372
     When the applicant is registered
     Then the registration is refused
     And no create call is made
