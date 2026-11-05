@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 import app.functions.bot_functions as bot_functions
+from app.services.brochures import FakeBrochureLinkSource
 from app.services.hubspot_registration import RegistrationResult
 
 scenarios("../features/welcome_composition_brochure.feature")
@@ -414,18 +415,22 @@ def given_endpoint_fakes(ctx, monkeypatch):
         return RegistrationResult(contact_id=str(next(_id_seq)), created=True)
 
     monkeypatch.setattr(bot_functions, "register_applicant_in_hubspot", fake_register)
+    # FS-55 step (c) owns match["brochure_url"]: it asks the brochure source for
+    # each listing id. The default source is built per request, so swap it here.
+    ctx.source = FakeBrochureLinkSource()
+    monkeypatch.setattr(bot_functions, "get_brochure_link_source", lambda: ctx.source)
     ctx.monkeypatch = monkeypatch
 
 
-@given("matching returns three listings, the first with a brochure link and all carrying internal fields")
+@given("matching returns three listings, the first has a brochure link in the brochure source, and all carry internal fields")
 def given_endpoint_matches(ctx):
     def internal(m, pid):
-        m.update({"property_id": pid, "match_score": 0.87,
+        m.update({"id": pid.replace("PROP-SECRET-", "LISTING-"), "property_id": pid, "match_score": 0.87,
                   "match_reason": "INTERNAL-REASON-XYZ", "notes": "SECRET-NOTE-LEAK"})
         return m
 
     matches = [
-        internal(_match("105 Pine Street", brochure_url=E2E_URL), "PROP-SECRET-1"),
+        internal(_match("105 Pine Street"), "PROP-SECRET-1"),
         internal(_match("22 Oak Lane", 910_000, 3), "PROP-SECRET-2"),
         internal(_match("8 Birch Mews", 1_010_000, 2), "PROP-SECRET-3"),
     ]
@@ -434,6 +439,7 @@ def given_endpoint_matches(ctx):
         return [dict(m) for m in matches]
 
     ctx.monkeypatch.setattr(bot_functions, "find_matching_listings", fake_matching)
+    ctx.source.set("LISTING-1", E2E_URL)      # listings 2 and 3 have no brochure
     ctx.matches = matches
 
 
@@ -470,3 +476,8 @@ def then_endpoint_no_internal(ctx):
     for sentinel in ("0.87", "INTERNAL-REASON-XYZ", "SECRET-NOTE-LEAK",
                      "PROP-SECRET-1", "PROP-SECRET-2", "PROP-SECRET-3"):
         assert sentinel not in body, f"non-allowlisted field leaked into the draft: {sentinel!r}"
+
+
+@then("the brochure source was asked about each of the three listings")
+def then_source_asked(ctx):
+    assert ctx.source.requested == ["LISTING-1", "LISTING-2", "LISTING-3"], ctx.source.requested
