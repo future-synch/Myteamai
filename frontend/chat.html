@@ -340,7 +340,7 @@
     // subject/body values — the applicant's own name, listing addresses — can
     // never inject markup. Container id/class match addMsg: #messages, .msg.bot.
     function addWelcomePreview(draft) {
-      if (!draft || (!draft.subject && !draft.text_body)) return;
+      if (!draft || (!draft.subject && !draft.text_body && !draft.html_body)) return;
       const msgs = document.getElementById('messages');
 
       const div = document.createElement('div');
@@ -361,11 +361,40 @@
         details.appendChild(subj);
       }
 
+      if (draft.html_body) {
+        // The email as the applicant will see it, "View brochure" buttons included.
+        // Scripts are off and the frame is cut off from this page (no allow-scripts,
+        // no allow-same-origin), so nothing inside the email can run or touch the
+        // page. allow-popups(+escape) lets a button open the brochure in a new tab.
+        const frame = document.createElement('iframe');
+        frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.setAttribute('title', 'Welcome email as the applicant will see it');
+        frame.className = 'email-preview-frame';
+        frame.style.cssText = 'width:100%;height:640px;border:1px solid #e5e7eb;' +
+                              'border-radius:6px;background:#fff;margin-top:6px;';
+        frame.srcdoc = '<!doctype html><meta charset="utf-8"><base target="_blank">' +
+          '<body style="margin:16px;font:14px/1.45 Arial,Helvetica,sans-serif;color:#202124;background:#fff">' +
+          draft.html_body + '</body>';
+        details.appendChild(frame);
+        details.open = true;   // the demo shows the email straight away
+        // An email is laid out for ~600px; the normal chat bubble is far narrower.
+        div.style.maxWidth = '760px';
+        div.style.width = '100%';
+      }
+
       if (draft.text_body) {
+        // Plain-text version: what mail clients without HTML show. Kept for checking.
+        const textDetails = document.createElement('details');
+        const textSummary = document.createElement('summary');
+        textSummary.textContent = 'Plain-text version';
+        textDetails.appendChild(textSummary);
         const bodyEl = document.createElement('div');
         bodyEl.style.whiteSpace = 'pre-wrap';   // keep the template's line breaks
         bodyEl.textContent = draft.text_body;
-        details.appendChild(bodyEl);
+        textDetails.appendChild(bodyEl);
+        if (!draft.html_body) textDetails.open = true;   // no HTML: the text is the preview
+        details.appendChild(textDetails);
       }
 
       div.appendChild(details);
