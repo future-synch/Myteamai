@@ -425,7 +425,8 @@ def given_endpoint_fakes(ctx, monkeypatch):
 @given("matching returns three listings, the first has a brochure link in the brochure source, and all carry internal fields")
 def given_endpoint_matches(ctx):
     def internal(m, pid):
-        m.update({"id": pid.replace("PROP-SECRET-", "LISTING-"), "property_id": pid, "match_score": 0.87,
+        # Real FS-70 shape (TS 5.2): the listing id is "property_id", nothing else.
+        m.update({"property_id": pid, "match_score": 0.87,
                   "match_reason": "INTERNAL-REASON-XYZ", "notes": "SECRET-NOTE-LEAK"})
         return m
 
@@ -439,7 +440,7 @@ def given_endpoint_matches(ctx):
         return [dict(m) for m in matches]
 
     ctx.monkeypatch.setattr(bot_functions, "find_matching_listings", fake_matching)
-    ctx.source.set("LISTING-1", E2E_URL)      # listings 2 and 3 have no brochure
+    ctx.source.set("PROP-SECRET-1", E2E_URL)  # listings 2 and 3 have no brochure
     ctx.matches = matches
 
 
@@ -480,4 +481,4 @@ def then_endpoint_no_internal(ctx):
 
 @then("the brochure source was asked about each of the three listings")
 def then_source_asked(ctx):
-    assert ctx.source.requested == ["LISTING-1", "LISTING-2", "LISTING-3"], ctx.source.requested
+    assert ctx.source.requested == ["PROP-SECRET-1", "PROP-SECRET-2", "PROP-SECRET-3"], ctx.source.requested

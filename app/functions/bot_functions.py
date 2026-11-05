@@ -576,7 +576,17 @@ async def fn_register_applicant(
     # registration is not discarded. The lookup is synchronous per FS-71's
     # signature; asyncio.to_thread keeps it off the event loop. ----------
     for match in first_matches:
-        listing_id = match.get("id") or match.get("listing_id")
+        # find_matching_listings emits the TS section 5.2 PropertyMatch shape,
+        # whose identifier is "property_id"; "id" / "listing_id" are accepted
+        # for raw listing dicts.
+        listing_id = (
+            match.get("property_id") or match.get("id") or match.get("listing_id")
+        )
+        if not listing_id:
+            # Never ask the source about a missing id (str(None) == "None").
+            log.warning("Step c (brochure): match has no listing id; skipping lookup")
+            match["brochure_url"] = None
+            continue
         try:
             match["brochure_url"] = await asyncio.to_thread(
                 source.get_brochure_link, listing_id
