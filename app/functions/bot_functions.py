@@ -32,7 +32,7 @@ from app.services.hubspot_registration import (
 from app.services.hubspot_client import build_hubspot_client
 from app.services.brochures import BrochureLinkSource, get_brochure_link_source
 from app.services.matching import find_matching_listings
-from app.services.transports.gmail import create_draft
+from app.services.transports import create_draft
 
 log = logging.getLogger(__name__)
 
@@ -613,7 +613,12 @@ async def fn_register_applicant(
     draft_ref: Optional[Dict[str, str]] = None
     if getattr(req, "dispatch", False) and welcome_draft is not None:
         try:
-            draft_ref = create_draft(welcome_draft)
+            # FS-42: the transport needs the recipient; the applicant is the
+            # recipient (the agent reviews and sends by hand from Gmail).
+            # Blocking network I/O, so off the event loop (same as step c).
+            draft_ref = await asyncio.to_thread(
+                create_draft, {**welcome_draft, "to": req.email}
+            )
         except Exception as exc:
             log.warning("Step e (draft) failed: %s", exc)
             errors.append(f"DRAFT_FAILED: {exc}")
