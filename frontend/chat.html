@@ -248,6 +248,16 @@
             <textarea id="r-must_have" placeholder="Optional — e.g. garden, parking, near tube"></textarea>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <div class="checkbox-group">
+              <label><input type="checkbox" id="r-dispatch"> Also create a Gmail draft of the welcome email</label>
+            </div>
+            <div class="field-hint" style="font-size:0.78rem;color:#6b7280;margin-top:2px;">
+              Nothing is sent. The draft appears in the shared mailbox for you to review, edit and send from Gmail.
+            </div>
+          </div>
+        </div>
         <div class="form-actions">
           <button class="send-btn" onclick="submitRegister()">Register Applicant</button>
         </div>
@@ -363,6 +373,38 @@
       msgs.scrollTop = msgs.scrollHeight;
     }
 
+    // Outcome of the Gmail draft step. textContent only: the mailbox address and
+    // any failure text come from the server and must never be parsed as markup.
+    // Shown for new AND existing applicants, because the backend creates the draft
+    // whenever it was asked to, so the page must report what actually happened.
+    function addDraftOutcome(data) {
+      const msgs = document.getElementById('messages');
+      const note = (text, type) => {
+        const div = document.createElement('div');
+        div.className = 'msg ' + type;
+        div.textContent = text;
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+      };
+
+      const ref = data && data.draft_ref;
+      if (ref) {
+        if (ref.transport === 'gmail') {
+          note('✓ Gmail draft created in the shared mailbox' + (ref.mailbox ? ' (' + ref.mailbox + ')' : '') +
+               '. Open Gmail → Drafts to review, edit and send it. Nothing has been sent.', 'success');
+        } else {
+          note('ℹ️ Test mode: the draft step ran with the "' + ref.transport + '" transport, so no Gmail draft exists.', 'info');
+        }
+      }
+
+      const errs = (data && Array.isArray(data.errors)) ? data.errors : [];
+      errs.filter(e => typeof e === 'string' && e.startsWith('DRAFT_FAILED')).forEach(e => {
+        const reason = e.replace(/^DRAFT_FAILED:\s*/, '');
+        note('⚠️ The applicant is registered, but the Gmail draft could not be created: ' + reason +
+             ' The welcome email text above is still available to copy.', 'error');
+      });
+    }
+
     function fieldError(id, msg) {
       const el = document.getElementById(id);
       if (el) el.textContent = msg;
@@ -455,6 +497,7 @@
       if (bedrooms_max_raw) body.bedrooms_max = parseInt(bedrooms_max_raw);
       if (timeline_raw)     body.timeline_weeks = parseInt(timeline_raw);
       if (must_have)        body.must_have = must_have;
+      if (document.getElementById('r-dispatch').checked) body.dispatch = true;
 
       addMsg(`Register applicant <strong>${full_name}</strong> (${email})`, 'user');
       const btn = document.querySelector('#form-register .send-btn');
@@ -466,6 +509,7 @@
         if (data.created) {
           addMsg(`✓ New applicant registered in HubSpot — ID <strong>${data.applicant_id}</strong>${matchNote}`, 'success');
           addWelcomePreview(data.welcome_draft);   // only for a newly created applicant
+          addDraftOutcome(data);
         } else {
           // Q6: existing applicant — NOT overwritten. Show what we already hold
           // vs what was just submitted; the differences are reported, not applied.
@@ -484,6 +528,7 @@
             ` Their existing record was left unchanged.${diffNote}`,
             'info'
           );
+          addDraftOutcome(data);
         }
       } else {
         // Real error: backend sends an `errors` list (A-2 rev 5); a 422 sends `detail`.
