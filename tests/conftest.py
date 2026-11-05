@@ -14,6 +14,10 @@ import pytest
 os.environ.setdefault("ANTHROPIC_MODE", "mock")
 # FS-71: every automated test runs against the in-memory brochure source — no network.
 os.environ.setdefault("BROCHURE_LINK_SOURCE", "fake")
+# FS-42: the suite must never be able to create a real Gmail draft, even if the
+# developer's shell has DRAFT_TRANSPORT=gmail and credentials exported. Forced,
+# not defaulted. Tests that exercise the Gmail transport inject a stub service.
+os.environ["DRAFT_TRANSPORT"] = "fake"
 
 # FS-67: production code no longer defaults DEV_PORTAL_ID — it fails closed when
 # unset. Provide a test dev portal here, at import time (before app.constants is
@@ -157,3 +161,13 @@ def mock_claude_scores():
             "match_reason": "Mortgage AIP buyer with adequate budget but KYC incomplete — proof of ID and funds outstanding before offer stage.",
         },
     ])
+
+
+@pytest.fixture(autouse=True)
+def _fresh_draft_transport():
+    """FS-42: the process-wide transport is cached; give every test a clean one."""
+    from app.services.transports import reset_draft_transport
+
+    reset_draft_transport()
+    yield
+    reset_draft_transport()
