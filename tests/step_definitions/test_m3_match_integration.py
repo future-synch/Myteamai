@@ -196,6 +196,7 @@ def test_live_match_returns_fit_applicant_and_filters_unfit(dev_session):
     resp = _run(fn_match_applicants(MatchApplicantsRequest(property_ref=address)))
 
     assert resp.status == "ok", resp
-    emails = {m.email for m in resp.matches}
-    assert fit_email in emails, f"fit applicant missing: {emails}"
-    assert unfit_email not in emails, f"unfit applicant should have been filtered: {emails}"
+    # HubSpot lowercases stored emails, so compare case-insensitively.
+    emails = {m.email.lower() for m in resp.matches}
+    assert fit_email.lower() in emails, f"fit applicant missing: {emails}"
+    assert unfit_email.lower() not in emails, f"unfit applicant should have been filtered: {emails}"
