@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from app.constants.registration_constants import DEV_PORTAL_ID, FORBIDDEN_PORTAL_IDS
+from app.services import hubspot_service
 from app.services.matching import find_matching_listings
 
 pytestmark = pytest.mark.integration
@@ -30,12 +31,28 @@ pytestmark = pytest.mark.integration
 HUBSPOT_BASE = "https://api.hubapi.com"
 LISTINGS_OBJECT_ID = "0-420"
 TIMEOUT = 30.0
+SEARCH_TIMEOUT = 40.0   # max wait for the search index to see a new record
+POLL_INTERVAL = 2.0
 TEST_PREFIX = "TEST-"
 SKIP_REASON = "HS_DEV_TOKEN not set — FS-70 live listings match needs the dev tenant token."
 
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+# HubSpot's search index is eventually consistent. The matching path reads via
+# get_all_listings, so poll that until both created ids appear, with a timeout,
+# before matching. Not a blind sleep.
+async def _wait_until_listings_searchable(ids, token: str) -> bool:
+    want = set(ids)
+    deadline = time.monotonic() + SEARCH_TIMEOUT
+    while time.monotonic() < deadline:
+        present = {l.get("id") for l in await hubspot_service.get_all_listings(token=token)}
+        if want <= present:
+            return True
+        await asyncio.sleep(POLL_INTERVAL)
+    return False
 
 
 class _DevClient:
@@ -111,6 +128,9 @@ def test_live_match_ranks_stronger_fit_first(dev_session):
         "budget": "up_to_3m", "beds_required": "3_plus", "property_types": ["house"],
         "outside_space": ["garden"], "parking": True, "area": ["chelsea"],
     }
+    assert _run(_wait_until_listings_searchable([strong, weak], os.environ["HS_DEV_TOKEN"])), \
+        f"listings not searchable after {SEARCH_TIMEOUT}s"
+
     # Use a high limit so both survive unranked OR, if the tenant has many
     # listings, ranking applies; either way compare our two records' order.
     results = _run(find_matching_listings(buyer, limit=50))
