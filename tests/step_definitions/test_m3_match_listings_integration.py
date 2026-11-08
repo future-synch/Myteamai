@@ -33,6 +33,7 @@ LISTINGS_OBJECT_ID = "0-420"
 TIMEOUT = 30.0
 SEARCH_TIMEOUT = 40.0   # max wait for the search index to see a new record
 POLL_INTERVAL = 2.0
+CREATE_ATTEMPTS = 4
 TEST_PREFIX = "TEST-"
 SKIP_REASON = "HS_DEV_TOKEN not set — FS-70 live listings match needs the dev tenant token."
 
@@ -66,11 +67,24 @@ class _DevClient:
             return r.json().get("portalId")
 
     async def create(self, object_id: str, properties: Dict[str, Any]) -> str:
+        """POST a record, retrying failures with exponential backoff (1s, 2s, 4s).
+        On the final failure raise with the response body, which raise_for_status()
+        would have hidden (e.g. a 400 INVALID_OPTION naming the bad property)."""
+        last = "no response"
         async with httpx.AsyncClient(timeout=TIMEOUT) as c:
-            r = await c.post(f"{HUBSPOT_BASE}/crm/v3/objects/{object_id}",
-                             headers=self._h, json={"properties": properties})
-            r.raise_for_status()
-            return r.json()["id"]
+            for attempt in range(CREATE_ATTEMPTS):
+                try:
+                    r = await c.post(f"{HUBSPOT_BASE}/crm/v3/objects/{object_id}",
+                                     headers=self._h, json={"properties": properties})
+                except httpx.TransportError as exc:   # timeout / connection reset
+                    last = f"{type(exc).__name__}: {exc}"
+                else:
+                    if r.status_code < 400:
+                        return r.json()["id"]
+                    last = f"HTTP {r.status_code} \u2014 {r.text}"
+                if attempt < CREATE_ATTEMPTS - 1:
+                    await asyncio.sleep(2 ** attempt)   # 1s, 2s, 4s
+        raise AssertionError(f"create {object_id} failed after {CREATE_ATTEMPTS} attempts: {last}")
 
     async def archive(self, object_id: str, record_id: str) -> None:
         async with httpx.AsyncClient(timeout=TIMEOUT) as c:
