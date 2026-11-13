@@ -27,6 +27,7 @@ import pytest
 
 from app.constants.registration_constants import DEV_PORTAL_ID, FORBIDDEN_PORTAL_IDS
 from app.models.schemas import MatchApplicantsRequest
+from app.services import hubspot_service
 from app.functions.bot_functions import fn_match_applicants
 
 pytestmark = pytest.mark.integration
@@ -34,6 +35,9 @@ pytestmark = pytest.mark.integration
 HUBSPOT_BASE = "https://api.hubapi.com"
 LISTINGS_OBJECT_ID = "0-420"
 TIMEOUT = 30.0
+SEARCH_TIMEOUT = 40.0   # max wait for the search index to see a new record
+POLL_INTERVAL = 2.0
+CREATE_ATTEMPTS = 4
 TEST_PREFIX = "TEST-"
 SKIP_REASON = "HS_DEV_TOKEN not set — FS-67 live match integration needs the dev tenant token."
 
@@ -44,6 +48,30 @@ def _run(coro):
 
 def _headers(token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+# HubSpot's search index is eventually consistent: a just-created record is not
+# instantly returned by search. Poll the same query the code under test uses, with
+# a timeout, before asserting. Not a blind sleep: that always pays the full wait
+# and still fails when the lag exceeds the guess.
+async def _wait_until_searchable(address: str, token: str) -> bool:
+    deadline = time.monotonic() + SEARCH_TIMEOUT
+    while time.monotonic() < deadline:
+        if await hubspot_service.get_listing_by_address(address, token=token):
+            return True
+        await asyncio.sleep(POLL_INTERVAL)
+    return False
+
+
+async def _wait_until_applicants_searchable(emails, token: str) -> bool:
+    want = {e.lower() for e in emails}
+    deadline = time.monotonic() + SEARCH_TIMEOUT
+    while time.monotonic() < deadline:
+        present = {(a.get("email") or "").lower() for a in await hubspot_service.get_all_applicants(token=token)}
+        if want <= present:
+            return True
+        await asyncio.sleep(POLL_INTERVAL)
+    return False
 
 
 class _DevClient:
@@ -59,13 +87,24 @@ class _DevClient:
             return r.json().get("portalId")
 
     async def create(self, object_id: str, properties: Dict[str, Any]) -> str:
+        """POST a record, retrying failures with exponential backoff (1s, 2s, 4s).
+        On the final failure raise with the response body, which raise_for_status()
+        would have hidden (e.g. a 400 INVALID_OPTION naming the bad property)."""
+        last = "no response"
         async with httpx.AsyncClient(timeout=TIMEOUT) as c:
-            r = await c.post(
-                f"{HUBSPOT_BASE}/crm/v3/objects/{object_id}",
-                headers=self._h, json={"properties": properties},
-            )
-            r.raise_for_status()
-            return r.json()["id"]
+            for attempt in range(CREATE_ATTEMPTS):
+                try:
+                    r = await c.post(f"{HUBSPOT_BASE}/crm/v3/objects/{object_id}",
+                                     headers=self._h, json={"properties": properties})
+                except httpx.TransportError as exc:   # timeout / connection reset
+                    last = f"{type(exc).__name__}: {exc}"
+                else:
+                    if r.status_code < 400:
+                        return r.json()["id"]
+                    last = f"HTTP {r.status_code} \u2014 {r.text}"
+                if attempt < CREATE_ATTEMPTS - 1:
+                    await asyncio.sleep(2 ** attempt)   # 1s, 2s, 4s
+        raise AssertionError(f"create {object_id} failed after {CREATE_ATTEMPTS} attempts: {last}")
 
     async def archive(self, object_id: str, record_id: str) -> None:
         async with httpx.AsyncClient(timeout=TIMEOUT) as c:
@@ -146,10 +185,18 @@ def test_live_match_returns_fit_applicant_and_filters_unfit(dev_session):
     }))
     created.append(("contacts", unfit_id))
 
+    # Wait for the search index to see the new records before matching.
+    token = os.environ["HS_DEV_TOKEN"]
+    assert _run(_wait_until_searchable(address, token)), \
+        f"listing {address!r} not searchable after {SEARCH_TIMEOUT}s"
+    assert _run(_wait_until_applicants_searchable([fit_email, unfit_email], token)), \
+        f"applicants not searchable after {SEARCH_TIMEOUT}s"
+
     # Run the live match against the listing address.
     resp = _run(fn_match_applicants(MatchApplicantsRequest(property_ref=address)))
 
     assert resp.status == "ok", resp
-    emails = {m.email for m in resp.matches}
-    assert fit_email in emails, f"fit applicant missing: {emails}"
-    assert unfit_email not in emails, f"unfit applicant should have been filtered: {emails}"
+    # HubSpot lowercases stored emails, so compare case-insensitively.
+    emails = {m.email.lower() for m in resp.matches}
+    assert fit_email.lower() in emails, f"fit applicant missing: {emails}"
+    assert unfit_email.lower() not in emails, f"unfit applicant should have been filtered: {emails}"
