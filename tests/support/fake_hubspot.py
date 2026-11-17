@@ -21,10 +21,14 @@ _TITLES = {"brochure": "Brochure", "floor_plan": "Floor Plan", "epc": "EPC", "le
 
 
 def marker_body(kind: str, filename: str, joiner: str = "<br>") -> str:
-    """A note body shaped like the real thing: HTML, lines joined with <br>, so
-    the whole body is ONE physical line and wrapped in markup before the marker."""
+    """A note body shaped like the real notes: the first line is
+    ``<KIND> drive:<drive file id>@<timestamp>`` (e.g. ``BROCHURE drive:1dHM...@2026-...Z``),
+    in HTML with lines joined by <br>, so the whole body is ONE physical line and
+    wrapped in markup before the kind word. The lines after it are filler: the
+    lookup must not care what they say."""
+    drive_id = hashlib.sha1(filename.encode()).hexdigest()[:33]      # 33 chars, like a Drive id
     lines = [
-        f"MyTeamAI document: {kind}",
+        f"{kind.upper()} drive:{drive_id}@2026-10-15T10:30:22.102Z",
         f"Source file: {filename}",
         f"Source folder: PROPERTIES 2026/{ADDRESS}",
         "Date: 2026-10-19",

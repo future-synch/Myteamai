@@ -8,11 +8,15 @@ READ-ONLY. No Google Drive call, no Drive credential, nothing written to HubSpot
 How a document is found
 -----------------------
 A document is a HubSpot Note associated with the Listing (0-420), carrying
-`hs_attachment_ids`. Every note this platform attaches begins its body with
+`hs_attachment_ids`. A note is of a given kind when its body contains that kind
+as an UPPER-CASE WHOLE WORD, e.g. BROCHURE. The notes written today read
 
-    MyTeamAI document: <kind>          e.g. "MyTeamAI document: brochure"
+    BROCHURE drive:<drive file id>@<timestamp>
 
-Selection is by that MARKER, never by recency across all notes and never by
+and nothing else in the body matters. The word is matched case-sensitively and
+is not anchored to a line start (bodies are HTML, lines joined with <br>).
+
+Selection is by that WORD, never by recency across all notes and never by
 position in `hs_attachment_ids` (HubSpot documents no ordering for that list).
 Among notes of the requested kind only, the newest wins, so a re-published
 brochure supersedes the old one and a later floor plan cannot displace it.
@@ -21,9 +25,9 @@ Behaviour that matters more than the code
 -----------------------------------------
 * None is a normal answer (confidential listings deliberately have no brochure).
   Not an error, not logged above INFO, no retry, no placeholder.
-* Divergence is a WARNING, not a repair: a marked note whose file does not look
-  like the kind, or is not a DOCUMENT, returns None. Sending the wrong document
-  is worse than sending none.
+* Divergence is a WARNING, not a repair: a note of the kind whose file does not
+  look like the kind, or is not a DOCUMENT, returns None. Sending the wrong
+  document is worse than sending none.
 * 401/403 RAISE. A broken token must never flatten to "no listing has a
   brochure" — that would send every applicant a buttonless email silently.
 * Only PUBLISHABLE_ACCESS values return a url (fail closed; see that constant).
@@ -53,9 +57,16 @@ BATCH_READ_LIMIT = 100                  # HubSpot batch read ceiling
 ASSOCIATION_PAGE_SIZE = 500             # v4 associations ceiling
 MAX_ASSOCIATION_PAGES = 100             # runaway-pagination guard
 
-# NOT line-anchored: note bodies are HTML and lines are joined with <br>, so the
-# whole body is frequently one physical line. `^...$` with re.M never matches.
-DOC_MARKER_RE = re.compile(r"MyTeamAI\s+document:\s*([a-z_]+)", re.I)
+
+def _kind_word_re(kind: str) -> "re.Pattern[str]":
+    """
+    The kind as an UPPER-CASE whole word, e.g. BROCHURE. Case-sensitive, so "Brochure"
+    or "brochure" in a body does not count, and NOT line-anchored: note bodies are HTML
+    and lines are joined with <br>, so the whole body is frequently one physical line.
+    `^...$` with re.M never matches.
+    """
+    return re.compile(rf"\b{re.escape(kind.upper())}\b")
+
 
 # The Drive convention is "{short} - Brochure (Print).pdf" (3 mm bleed). Match the
 # parenthesised form only, so a street called "Print Room Mews" is not refused.
@@ -120,12 +131,12 @@ def get_listing_document_link(
         return None
     notes = _read_notes(hs, note_ids)
 
-    # 1. SELECT by marker, not by recency across all notes.
+    # 1. SELECT by the kind word in the body (BROCHURE), not by recency across all notes.
+    kind_word = _kind_word_re(kind)
     candidates: List[Tuple[datetime, int, str, str]] = []   # (timestamp, note sort id, file id, note id)
     for n in notes:
         props = n.get("properties") or {}
-        m = DOC_MARKER_RE.search(props.get("hs_note_body") or "")
-        if not m or m.group(1).lower() != kind:
+        if not kind_word.search(props.get("hs_note_body") or ""):
             continue
         ids = _split_attachment_ids(props.get("hs_attachment_ids"))
         if len(ids) != 1:
@@ -140,7 +151,7 @@ def get_listing_document_link(
         )
 
     if not candidates:
-        log.debug("listing %s: no note marked %r", listing_id, kind)
+        log.debug("listing %s: no note whose body contains the word %s", listing_id, kind.upper())
         return None
 
     # 2. ORDER among that kind only. Timestamp first, then note id so two equal or
@@ -285,7 +296,8 @@ def _note_sort_id(raw: Any) -> int:
 
 
 def _name_matches(kind: str, name: Optional[str]) -> bool:
-    """Verification only — selection is by marker. Refuses print variants."""
+    """Verification only — selection is by the kind word (BROCHURE) in the note body.
+    Refuses print variants."""
     if not name or _PRINT_VARIANT_RE.search(name):
         return False
     words = kind.replace("_", " ")

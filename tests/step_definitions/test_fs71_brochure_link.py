@@ -151,7 +151,8 @@ def g_html_body(ctx):
 
 @given("a listing with one note carrying a pdf attachment and no marker")
 def g_unmarked(ctx):
-    # Even a file called "Brochure" must not be picked: selection is by marker.
+    # Even a file called "Brochure" must not be picked: selection is by the BROCHURE
+    # word in the note body, and this body has none.
     fid = ctx.fake.add_file(default_filename("brochure"))
     ctx.fake.add_note(LISTING, "<div>Received from vendor</div>", [fid], MONDAY)
 
