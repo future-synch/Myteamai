@@ -132,6 +132,16 @@ function filterKB(cat){
 selectFlow('welcome');
 selectKB('kb-match-w11');
 
+// ── SESSION ───────────────────────────────────────────────────
+// The workspace needs the token the login page stored. No token: back to login.
+const TOKEN = localStorage.getItem('token');
+if (!TOKEN) window.location.replace('/');
+
+function signOut(){
+  localStorage.clear();
+  window.location.href = '/';
+}
+
 // ── AGENT COMMAND WINDOW ──────────────────────────────────────
 const AGENT_RESPONSES = {
   match: {
