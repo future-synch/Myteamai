@@ -945,38 +945,10 @@ const UP_CONTENT = {
           </div>
         </div>
 
-        <div class="up-field" style="margin-bottom:10px">
-          <label>Name on card</label>
-          <input type="text" id="cc-name" placeholder="Olesya Kovalskaya" autocomplete="cc-name">
-        </div>
-
-        <div class="up-field" style="margin-bottom:10px">
-          <label>Card number</label>
-          <div style="position:relative">
-            <input type="text" id="cc-number" placeholder="1234 5678 9012 3456" maxlength="19" autocomplete="cc-number" oninput="formatCard(this)" style="padding-right:40px">
-            <span id="cc-brand" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px"></span>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-          <div class="up-field" style="margin-bottom:0">
-            <label>Expiry month</label>
-            <select id="cc-month" autocomplete="cc-exp-month">
-              <option value="">MM</option>
-              ${Array.from({length:12},(_,i)=>{const m=String(i+1).padStart(2,'0');return`<option value="${m}">${m}</option>`}).join('')}
-            </select>
-          </div>
-          <div class="up-field" style="margin-bottom:0">
-            <label>Expiry year</label>
-            <select id="cc-year" autocomplete="cc-exp-year">
-              <option value="">YYYY</option>
-              ${Array.from({length:10},(_,i)=>`<option value="${2026+i}">${2026+i}</option>`).join('')}
-            </select>
-          </div>
-          <div class="up-field" style="margin-bottom:0">
-            <label>CVC <span style="color:#888780;font-weight:300">(?)</span></label>
-            <input type="text" id="cc-cvc" placeholder="•••" maxlength="4" autocomplete="cc-csc" style="letter-spacing:2px">
-          </div>
+        <div class="up-field" style="margin-bottom:12px">
+          <label>Card details</label>
+          <div id="stripe-card-element"></div>
+          <div id="stripe-card-error" role="alert"></div>
         </div>
 
         <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;font-size:10px;color:#888780">
@@ -985,7 +957,7 @@ const UP_CONTENT = {
         </div>
 
         <div style="display:flex;gap:8px">
-          <button class="up-save-btn" onclick="saveCard()" style="flex:1;margin-top:0">Save card</button>
+          <button class="up-save-btn" disabled title="Card payments are not connected yet" style="flex:1;margin-top:0">Save card</button>
           <button class="btn-g" onclick="toggleAddCard()" style="padding:9px 16px">Cancel</button>
         </div>
       </div>
@@ -1118,33 +1090,4 @@ function toggleAddCard(){
   const isOpen = form.style.display !== 'none';
   form.style.display = isOpen ? 'none' : 'block';
   if(confirm) confirm.style.display = 'none';
-}
-
-function formatCard(input){
-  let v = input.value.replace(/\D/g,'').substring(0,16);
-  input.value = v.replace(/(.{4})/g,'$1 ').trim();
-  // Brand detection
-  const brand = document.getElementById('cc-brand');
-  if(brand){
-    if(/^4/.test(v)) brand.textContent='💳';
-    else if(/^5[1-5]/.test(v)) brand.textContent='🏦';
-    else if(/^3[47]/.test(v)) brand.textContent='🔐';
-    else brand.textContent='';
-  }
-}
-
-function saveCard(){
-  const name = document.getElementById('cc-name')?.value.trim();
-  const num  = document.getElementById('cc-number')?.value.replace(/\s/g,'');
-  const mon  = document.getElementById('cc-month')?.value;
-  const yr   = document.getElementById('cc-year')?.value;
-  const cvc  = document.getElementById('cc-cvc')?.value;
-  if(!name || num.length < 13 || !mon || !yr || cvc.length < 3){
-    alert('Please complete all card fields.');
-    return;
-  }
-  // Show confirmation, hide form
-  document.getElementById('stripe-card-form').style.display='none';
-  const conf = document.getElementById('card-saved-confirm');
-  if(conf) conf.style.display='block';
 }
