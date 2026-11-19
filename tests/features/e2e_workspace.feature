@@ -77,3 +77,127 @@ Feature: The new workspace page in a real browser (FS-76)
     And I have sent "What is the weather in London?" from the agent box
     When I click Clear
     Then the thread holds one message, "Ready. Type a command or use the chips above to run a flow."
+
+  # ---- welcome ------------------------------------------------------------
+
+  Scenario: Free-text welcome renders a result card with the client name and no placeholder
+    Given I am signed in as the agent on the workspace
+    When I type "Welcome new client, James Hyde, came through Rightmove" in the agent box and click Run
+    Then a result card says "Dear James Hyde,"
+    And the result card has an "Extracted:" line naming "James Hyde" and "Rightmove"
+    And the result card has no "[" placeholder
+    And the browser sent POST "/classify" and then POST "/bot/welcome-from-text"
+
+  Scenario: Run flow on Generate welcome opens the form and sends dispatch false
+    Given I am signed in as the agent on the workspace
+    When I run the "welcome" flow from Action Flows
+    Then the welcome form is shown in the Command Centre
+    And the welcome form has no dispatch field
+    When I submit the welcome form for "James Hyde"
+    Then a result card says "Dear James Hyde,"
+    And a POST to "/bot/welcome" was sent with dispatch set to false
+    And the welcome form has collapsed
+
+  Scenario: A blank client name is refused in the browser and nothing is sent
+    Given I am signed in as the agent on the workspace
+    When I run the "welcome" flow from Action Flows
+    And I submit the welcome form with the client name left blank
+    Then the "client_name" field shows the error "Client name is required"
+    And no POST to "/bot/welcome" was sent
+
+  # ---- register applicant -------------------------------------------------
+
+  Scenario: The Register applicant chip shows the registration form
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    Then the registration form is shown in the Command Centre
+    And the browser sent only POST "/classify"
+
+  Scenario: TS Test 12 equivalent - a blank registration is refused in the browser and nothing is sent
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    And I submit the registration form with nothing filled in
+    Then the registration form shows the inline error "Full name is required" under "full_name"
+    And the registration form shows the inline error "Pick at least one" under "property_types"
+    And no POST to "/bot/register-applicant" was sent
+
+  Scenario: Tabbing out of an empty required field shows Required
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    And I click into the "full_name" field and tab out without typing
+    Then the registration form shows the inline error "Required" under "full_name"
+
+  Scenario: Registering a new applicant through the real app
+    Given HubSpot is faked: registering creates a new contact and one listing matches
+    And I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the confirmation says "New applicant registered in HubSpot" with ID "7001" and "1 suggested match"
+    And the welcome email preview is collapsed
+    And a POST to "/bot/register-applicant" was sent with dispatch set to false
+    And the registration form has collapsed
+
+  Scenario: Registering an applicant who already exists through the real app
+    Given HubSpot is faked: the applicant already exists and their budget differs
+    And I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the info card says the applicant already exists and the record was left unchanged
+    And the info card has a row for "budget_gbp" saying "we hold “2000000”, you entered “3500000”"
+
+  Scenario: Created response - confirmation with ID and match count, collapsed preview
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "created" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the confirmation says "New applicant registered in HubSpot" with ID "7001" and "2 suggested matches"
+    And the welcome email preview is collapsed
+    When I open the welcome email preview
+    Then the preview shows the subject "Welcome to Curtis Sloane, Tom" and the text "Dear Tom,"
+
+  Scenario: Existing response - info card with one row per differing field
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "existing" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the info card says the applicant already exists and the record was left unchanged
+    And the info card has a row for "budget_gbp" saying "we hold “2000000”, you entered “3500000”"
+    And the info card has a row for "property_types" saying "we hold “house”, you entered “flat; house”"
+
+  Scenario: An errors list is shown as an error card with the reason and a next step
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "errors" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then an error card says "HUBSPOT_SYNC_FAIL"
+    And the error card says what to do next
+    And the registration form is still open
+
+  Scenario: A 422 is shown as an error card with the reason
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "unprocessable" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then an error card says "value is not a valid email address"
+    And the error card says what to do next
+
+  Scenario: The submit button is disabled while the request runs
+    Given HubSpot is faked: registering creates a new contact and one listing matches
+    And I am signed in as the agent on the workspace
+    And the backend holds POST "/bot/register-applicant" until I let it through
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the registration form's submit button is disabled
+    When I let the held request through
+    Then the registration form has collapsed
+
+  Scenario: XSS - markup in a name is shown as literal text and never runs
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "markup" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "<img src=x onerror=window.__xss=1>"
+    Then the confirmation shows the text "<img src=x onerror=window.__xss=1>" literally
+    When I open the welcome email preview
+    Then the preview shows the text "<img src=x onerror=window.__xss=1>" literally
+    And the thread contains no image, script or frame elements
+    And window.__xss is undefined
