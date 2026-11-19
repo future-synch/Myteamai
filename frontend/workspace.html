@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+
+<title>Curtis Sloane Workspace — My Team AI</title>
+<meta name="description" content="My Team AI workspace for Curtis Sloane Property. AI-powered command centre, action flows, knowledge base, and social management for W11 residential property.">
+<meta name="keywords" content="My Team AI workspace, property AI, estate agency AI, Curtis Sloane, W11 property">
+<meta name="author" content="Future Synch">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' rx='6' fill='%231a3a2a'/&gt;&lt;text y='22' x='5' font-size='18' font-family='Arial,sans-serif' font-weight='700' fill='white'&gt;FS&lt;/text&gt;&lt;/svg&gt;">
+<link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' rx='6' fill='%231a3a2a'/&gt;&lt;text y='22' x='5' font-size='18' font-family='Arial,sans-serif' font-weight='700' fill='white'&gt;FS&lt;/text&gt;&lt;/svg&gt;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/static/workspace.css">
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">My Team AI</div>
+  <div class="ws-pill">Curtis Sloane · W11</div>
+  <div class="topbar-nav">
+    <div class="tn active" id="tn-cc" onclick="showPage('cc')">Command Centre</div>
+    <div class="tn" id="tn-af" onclick="showPage('af')">Action Flows</div>
+    <div class="tn" id="tn-kb" onclick="showPage('kb')">Knowledge Base</div>
+    <div class="tn" id="tn-sm" onclick="showPage('sm')">Social</div>
+    <div class="tn" id="tn-ah" onclick="showPage('ah')">Apps Hub</div>
+  </div>
+  <div class="topbar-right">
+    <div class="model-switcher" id="model-switcher" onclick="toggleModelDD(event)">
+      <div class="model-dot" id="model-dot"></div>
+      <span id="model-label">Claude Sonnet</span>
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 3L4 5.5L6.5 3" stroke="#888780" stroke-width="1.2" stroke-linecap="round"></path></svg>
+      <div class="model-dropdown" id="model-dropdown">
+        <div class="model-dd-hdr">Switch AI model</div>
+        <div class="model-opt active" id="mopt-sonnet" onclick="selectModel('sonnet',event)">
+          <div class="model-opt-dot" style="background:#7F77DD"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Claude Sonnet</div>
+            <div class="model-opt-desc">Balanced · fast · recommended for most tasks</div>
+          </div>
+          <div class="model-opt-check">✓</div>
+        </div>
+        <div class="model-opt" id="mopt-opus" onclick="selectModel('opus',event)">
+          <div class="model-opt-dot" style="background:#BA7517"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Claude Opus</div>
+            <div class="model-opt-desc">Deepest reasoning · valuations · complex analysis</div>
+          </div>
+          <div class="model-opt-check">✓</div>
+        </div>
+        <div class="model-opt" id="mopt-haiku" onclick="selectModel('haiku',event)">
+          <div class="model-opt-dot" style="background:#1D9E75"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Claude Haiku</div>
+            <div class="model-opt-desc">Fastest · KYC checks · lightweight tasks</div>
+          </div>
+          <div class="model-opt-check">✓</div>
+        </div>
+        <div class="model-opt" id="mopt-gpt4o" onclick="selectModel('gpt4o',event)">
+          <div class="model-opt-dot" style="background:#185FA5"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">GPT-4o</div>
+            <div class="model-opt-desc">OpenAI · outreach drafting · alternative perspective</div>
+          </div>
+          <div class="model-opt-check">✓</div>
+        </div>
+        <div class="model-dd-footer">KB context carries across all model switches</div>
+      </div>
+    </div>
+    <div class="status-dot"></div>
+
+    <!-- Avatar + dropdown -->
+    <div style="position:relative">
+      <div class="avatar" id="avatar-btn" onclick="toggleUserDD(event)" title="Account">OK</div>
+      <div class="user-dropdown" id="user-dropdown">
+        <div class="user-dd-header">
+          <div class="user-dd-name">Olesya Kovalskaya</div>
+          <div class="user-dd-plan">Curtis Sloane workspace <span class="user-dd-plan-badge">Growth</span></div>
+        </div>
+        <div class="user-dd-item" onclick="openUserPanel('dashboard')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="#5F5E5A" stroke-width="1.3"></rect><rect x="9" y="2" width="5" height="5" rx="1" stroke="#5F5E5A" stroke-width="1.3"></rect><rect x="2" y="9" width="5" height="5" rx="1" stroke="#5F5E5A" stroke-width="1.3"></rect><rect x="9" y="9" width="5" height="5" rx="1" stroke="#5F5E5A" stroke-width="1.3"></rect></svg>
+          Dashboard
+        </div>
+        <div class="user-dd-item" onclick="openUserPanel('documentation')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="14" rx="1.5" stroke="#5F5E5A" stroke-width="1.3"></rect><path d="M6 5h4M6 8h4M6 11h2" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          Documentation
+        </div>
+        <div class="user-dd-item" onclick="openUserPanel('team')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="#5F5E5A" stroke-width="1.3"></circle><path d="M1 13c0-2.761 2.239-4 5-4" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"></path><circle cx="11.5" cy="5.5" r="2" stroke="#5F5E5A" stroke-width="1.3"></circle><path d="M10 13c0-2.209 1.567-3.5 3.5-3.5" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          Team
+        </div>
+        <div class="user-dd-item" onclick="openUserPanel('profile')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="3" stroke="#5F5E5A" stroke-width="1.3"></circle><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          Profile
+        </div>
+        <div class="user-dd-item" onclick="openUserPanel('settings')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="#5F5E5A" stroke-width="1.3"></circle><path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.06 1.06M11.54 11.54l1.06 1.06M3.4 12.6l1.06-1.06M11.54 4.46l1.06-1.06" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          Settings
+        </div>
+        <div class="user-dd-divider"></div>
+        <div class="user-dd-item user-dd-signout" onclick="closeUserDD()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6" stroke="#A32D2D" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          Sign out
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ USER PANEL OVERLAY ══ -->
+<div class="up-overlay" id="up-overlay" onclick="overlayClick(event)">
+  <div class="up-panel" onclick="event.stopPropagation()">
+    <div class="up-panel-hdr">
+      <div class="up-panel-title" id="up-panel-title">Dashboard</div>
+      <button class="up-close" onclick="closeUserPanel()">✕</button>
+    </div>
+    <div class="up-tabs" id="up-tabs">
+      <div class="up-tab active" onclick="switchUpTab('dashboard')">Dashboard</div>
+      <div class="up-tab" onclick="switchUpTab('documentation')">Documentation</div>
+      <div class="up-tab" onclick="switchUpTab('team')">Team</div>
+      <div class="up-tab" onclick="switchUpTab('profile')">Profile</div>
+      <div class="up-tab" onclick="switchUpTab('settings')">Settings</div>
+    </div>
+    <div class="up-body" id="up-body"></div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-sec">
+    <div class="sec-hdr"><span>Red Signals</span><span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;background:#FCEBEB;color:#A32D2D">3</span></div>
+    <div class="si" onclick="showPage('cc')"><div class="sig-dot sdr"></div><div style="flex:1"><div style="font-size:11px;font-weight:500;color:#A32D2D">KYC overdue — Mrs Patterson</div><div style="font-size:10px;color:#888780">Proof of funds — 6 days</div></div></div>
+    <div class="si" onclick="showPage('cc')"><div class="sig-dot sdr"></div><div style="font-size:11px;font-weight:500;color:#A32D2D;flex:1">94 Portland Rd calls overdue</div></div>
+    <div class="si" onclick="showPage('sm')"><div class="sig-dot sda"></div><div style="font-size:11px;font-weight:500;color:#633806;flex:1">7 social posts await approval</div></div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sec-hdr"><span>Active Flows</span><span class="sec-add" onclick="showPage('af')">+</span></div>
+    <div class="si" onclick="showPage('af')"><div class="sd dp"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Register Applicant</div><div style="font-size:10px;color:#888780">S. Chen · running</div></div><span class="sbadge sbp">Live</span></div>
+    <div class="si" onclick="showPage('af')"><div class="sd dg"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Match Applicants</div><div style="font-size:10px;color:#888780">14 Ladbroke Rd · 4m ago</div></div><span class="sbadge sbg">Done</span></div>
+    <div class="si" onclick="showPage('af')"><div class="sd dr"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">KYC / AML Status</div><div style="font-size:10px;color:#888780">Mrs Patterson · blocked</div></div><span class="sbadge sbr">Blocked</span></div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sec-hdr"><span>Recent Chats</span><span class="sec-add">+</span></div>
+    <div class="si active"><div class="sd dg"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Match Applicants — 14 Ladbroke Rd</div><div style="font-size:10px;color:#888780">Today · saved to KB</div></div></div>
+    <div class="si"><div class="sd dpk"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Social Draft — Wisteria</div><div style="font-size:10px;color:#888780">Today</div></div></div>
+    <div class="si"><div class="sd dp"></div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Valuation Brief — 22 Abbotsbury</div><div style="font-size:10px;color:#888780">Yesterday · saved to KB</div></div></div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sec-hdr"><span>Team</span></div>
+    <div class="si"><div class="team-av" style="background:#E1F5EE;color:#085041">CS</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">Curtis Sloane</div><div style="font-size:10px;color:#888780">Principal</div></div><div class="sd dg"></div></div>
+    <div class="si"><div class="team-av" style="background:#EEEDFE;color:#3C3489">M</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">Marta</div><div style="font-size:10px;color:#888780">Applicant Manager</div></div><div class="sd dg"></div></div>
+    <div class="si"><div class="team-av" style="background:#FAEEDA;color:#633806">S</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">Sebastian</div><div style="font-size:10px;color:#888780">Property Negotiator</div></div><div class="sd dx"></div></div>
+  </div>
+
+  <!-- KB in sidebar — compact library -->
+  <div class="sb-sec grow">
+    <div class="sec-hdr"><span>Knowledge Base</span><span class="sec-add" onclick="showPage('kb')">→</span></div>
+
+    <div style="padding:2px 12px 3px;font-size:9px;font-weight:600;color:#D4537E;letter-spacing:.4px;text-transform:uppercase">From chats</div>
+    <div class="kb-si" onclick="showPage('kb');selectKB('kb-match-w11')">
+      <div class="kb-icon-sm" style="background:#E1F5EE">🏠</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">W11 matching criteria playbook</div></div>
+      <span class="kb-src" style="color:#D4537E">chat</span>
+    </div>
+    <div class="kb-si" onclick="showPage('kb');selectKB('kb-val-method')">
+      <div class="kb-icon-sm" style="background:#FAEEDA">📊</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">Valuation method — W11 2026</div></div>
+      <span class="kb-src" style="color:#D4537E">chat</span>
+    </div>
+    <div class="kb-si" onclick="showPage('kb');selectKB('kb-kyc-flow')">
+      <div class="kb-icon-sm" style="background:#FCEBEB">⚖️</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">KYC escalation workflow</div></div>
+      <span class="kb-src" style="color:#D4537E">flow</span>
+    </div>
+    <div class="kb-si" onclick="showPage('kb');selectKB('kb-social-voice')">
+      <div class="kb-icon-sm" style="background:#FBEAF0">🎨</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">Social caption rules — CS voice</div></div>
+      <span class="kb-src" style="color:#D4537E">chat</span>
+    </div>
+
+    <div style="padding:6px 12px 3px;font-size:9px;font-weight:600;color:#888780;letter-spacing:.4px;text-transform:uppercase">Source documents</div>
+    <div class="kb-si" onclick="showPage('kb')">
+      <div class="kb-icon-sm" style="background:#F1EFE8">📋</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">New contact process</div></div>
+      <span class="kb-src">Notion</span>
+    </div>
+    <div class="kb-si" onclick="showPage('kb')">
+      <div class="kb-icon-sm" style="background:#F1EFE8">🎨</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">Brand voice guide</div></div>
+      <span class="kb-src">Notion</span>
+    </div>
+    <div class="kb-si" onclick="showPage('kb')">
+      <div class="kb-icon-sm" style="background:#F1EFE8">🏠</div>
+      <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#1a1a18">Active pipeline guide</div></div>
+      <span class="kb-src">Notion</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ COMMAND CENTRE ══════════════════════ -->
+<div class="page active" id="page-cc">
+  <div style="background:#FCEBEB;border:1px solid #F09595;border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:9px">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><circle cx="8" cy="8" r="7" stroke="#A32D2D" stroke-width="1.3"></circle><path d="M8 5v4M8 11v.5" stroke="#A32D2D" stroke-width="1.5" stroke-linecap="round"></path></svg>
+    <div style="flex:1;font-size:11px;color:#791F1F"><span style="font-weight:500">3 items need attention:</span> Mrs Patterson KYC overdue · 94 Portland Rd calls not started · 7 social posts awaiting approval</div>
+    <button class="btn-g" style="font-size:10px;border-color:#F09595;color:#A32D2D">Dismiss</button>
+  </div>
+
+  <div><div class="slbl">This Week</div>
+    <div class="metrics-row">
+      <div class="mc"><div class="ml">Active buyers</div><div class="mv">18</div><div class="ms mok">Target 15 ✓</div></div>
+      <div class="mc"><div class="ml">Active clients</div><div class="mv">7</div><div class="ms">of 35 capacity</div></div>
+      <div class="mc"><div class="ml">KB entries</div><div class="mv">24</div><div class="ms mok">4 from chats this week</div></div>
+      <div class="mc"><div class="ml">KB context coverage</div><div class="mv">91%</div><div class="ms mok">Across all models</div></div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px"><div class="slbl" style="margin-bottom:0">This Week — Google Calendar</div><span style="font-size:10px;color:#888780">Apr 20–26</span></div>
+        <div class="cal-strip">
+          <div class="cal-day"><div class="cal-wd">Mon</div><div class="cal-dt">21</div><div class="cal-ev ce-p">Pipeline calls</div><div class="cal-ev ce-a">KYC: D. Morley</div></div>
+          <div class="cal-day today"><div class="cal-wd">Tue</div><div class="cal-dt">22</div><div class="cal-ev ce-g">Team standup 9am</div><div class="cal-ev ce-pk">Social: CS-04</div><div class="cal-ev ce-a">94 Portland calls!</div></div>
+          <div class="cal-day"><div class="cal-wd">Wed</div><div class="cal-dt">23</div><div class="cal-ev ce-pk">Social: CS-05</div><div class="cal-ev ce-g">Newsletter review</div></div>
+          <div class="cal-day"><div class="cal-wd">Thu</div><div class="cal-dt">24</div><div class="cal-ev ce-p">Valuation — Blackwood</div></div>
+          <div class="cal-day"><div class="cal-wd">Fri</div><div class="cal-dt">25</div><div class="cal-ev ce-pk">Social: CS-06</div><div class="cal-ev ce-x">T. Baker qual. call</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="slbl">Client Pipeline</div>
+        <div class="three-col">
+          <div><div class="pc-title">KYC <span class="pcount">3</span></div><div class="pcard" style="border-color:#F09595"><div class="pname" style="color:#A32D2D">Mrs Patterson</div><div class="pmeta">Proof of funds — 6d overdue</div></div><div class="pcard"><div class="pname">D. Morley</div><div class="pmeta">ID document sent</div></div></div>
+          <div><div class="pc-title">Active <span class="pcount">4</span></div><div class="pcard"><div class="pname">R. Blackwood</div><div class="pmeta">Valuation Thu 24 Apr</div></div><div class="pcard"><div class="pname">Chen family</div><div class="pmeta">Viewing: 22 Abbotsbury Rd</div></div></div>
+          <div><div class="pc-title">On market <span class="pcount">2</span></div><div class="pcard"><div class="pname">22 Abbotsbury Rd</div><div class="pprice">£3.85M</div><div class="pmeta">Day 12</div></div><div class="pcard"><div class="pname">8 Portland Road</div><div class="pprice">£2.4M</div><div class="pmeta">Day 4</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ AGENT COMMAND WINDOW ══ -->
+    <div style="display:flex;flex-direction:column;gap:0;background:#fff;border:1px solid #D3D1C7;border-radius:10px;overflow:hidden;height:100%;min-height:480px">
+
+      <!-- Header -->
+      <div style="padding:10px 14px;border-bottom:1px solid #F1EFE8;display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="width:7px;height:7px;border-radius:50%;background:#1D9E75"></div>
+        <span style="font-size:12px;font-weight:500;color:#1a1a18">Agent</span>
+        <span class="agent-model-tag" id="agent-model-tag">Claude Sonnet · KB loaded</span>
+        <div style="margin-left:auto;display:flex;gap:5px">
+          <button class="cab" onclick="clearAgent()" title="Clear">Clear</button>
+        </div>
+      </div>
+
+      <!-- Quick command chips -->
+      <div style="padding:8px 12px;border-bottom:1px solid #F1EFE8;display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0;background:#F9F9F7">
+        <button class="agent-chip" onclick="runChip('match applicants for 14 Ladbroke Road — 4 bed, £3.5M budget')">Match applicants</button>
+        <button class="agent-chip" onclick="runChip('register new applicant')">Register applicant</button>
+        <button class="agent-chip" onclick="runChip('valuation brief for 22 Abbotsbury Road W11')">Valuation brief</button>
+        <button class="agent-chip" onclick="runChip('check KYC status for Mrs Patterson')">KYC status</button>
+        <button class="agent-chip" onclick="runChip('draft outreach for long-term W11 residents')">Draft outreach</button>
+        <button class="agent-chip" onclick="runChip('draft social post — wisteria season, Abundance pillar')">Social draft</button>
+      </div>
+
+      <!-- Conversation thread -->
+      <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px" id="agent-body">
+
+        <!-- System greeting -->
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
+          <div style="background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#1a1a18;line-height:1.55;max-width:90%">
+            Good morning, Curtis. 3 items need attention today.<br>
+            <span style="color:#A32D2D">·</span> Mrs Patterson — KYC proof of funds, day 6<br>
+            <span style="color:#A32D2D">·</span> 94 Portland Rd — calls not started<br>
+            <span style="color:#BA7517">·</span> 7 social posts awaiting your approval<br><br>
+            Type a command or use the chips above to run a flow. I can match applicants, register contacts, draft outreach, run valuations, check KYC, or set tasks.
+          </div>
+        </div>
+
+        <!-- Example: previous agent exchange -->
+        <div style="display:flex;justify-content:flex-end">
+          <div style="background:#F1EFE8;border-radius:12px 12px 2px 12px;padding:8px 12px;font-size:12px;color:#1a1a18;max-width:80%">
+            Match applicants for 14 Ladbroke Road — 4 bed £3.5M
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
+          <div style="max-width:92%">
+            <div style="font-size:9px;color:#B4B2A9;margin-bottom:3px;padding-left:2px">Match Applicants · Buyers: Active · 18 searched · 1.4s · W11 criteria from KB</div>
+            <div style="background:#fff;border:1px solid #D3D1C7;border-radius:2px 10px 10px 10px;padding:10px 12px">
+              <div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Top matches — 14 Ladbroke Road W11</div>
+              <div class="mr"><span class="ma">Sarah Chen · £3.8M · cash</span><span class="sh">0.94</span><span class="mky kyo">KYC ✓</span></div>
+              <div class="mr"><span class="ma">James Hyde · £3.2M · AIP</span><span class="sh">0.81</span><span class="mky kyo">KYC ✓</span></div>
+              <div class="mr" style="margin-bottom:8px"><span class="ma">Tom Baker · £2.9M · AIP pend.</span><span class="sm">0.72</span><span class="mky kyw">KYC blocked</span></div>
+              <!-- Task / action row -->
+              <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8">
+                <button class="cab" onclick="agentAction('draft-intros')">Draft intros</button>
+                <button class="cab" onclick="agentAction('hubspot')">Log to HubSpot</button>
+                <button class="cab" onclick="agentAction('set-task')">Set viewing task</button>
+                <button class="cab" style="border-color:#AFA9EC;color:#3C3489" onclick="agentAction('save-kb')">Save to KB</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task confirmation (shown after Set viewing task) -->
+        <div id="task-confirm" style="display:none;align-items:flex-start;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
+          <div style="background:#E1F5EE;border:1px solid #5DCAA5;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#085041;max-width:90%">
+            ✓ Task set — <strong>Viewing: Sarah Chen · 14 Ladbroke Road</strong><br>
+            <span style="font-size:10px;color:#0F6E56">Assigned to Marta · Thu 24 Apr · HubSpot task created · calendar invite queued</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Command input -->
+      <div style="border-top:1px solid #D3D1C7;flex-shrink:0">
+        <div style="padding:6px 12px 0;font-size:9px;color:#B4B2A9;letter-spacing:.3px">Type naturally or choose a flow above</div>
+        <div style="display:flex;gap:0">
+          <textarea id="agent-input" rows="2" placeholder="e.g. &quot;register James Hyde, £3.2M budget, 4 bed, AIP held&quot; or &quot;draft welcome for Sarah Chen, referral from Millers&quot;" style="flex:1;font-size:12px;padding:9px 12px;border:none;background:transparent;color:#1a1a18;font-family:inherit;outline:none;resize:none;line-height:1.5" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendAgent()}"></textarea>
+          <div style="display:flex;flex-direction:column;justify-content:center;padding:8px 10px;gap:5px;border-left:1px solid #F1EFE8">
+            <button onclick="sendAgent()" style="padding:6px 14px;background:#1D9E75;border:none;border-radius:7px;color:#E1F5EE;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">Run ↵</button>
+            <button onclick="showPage('af')" style="padding:4px 10px;background:transparent;border:1px solid #D3D1C7;border-radius:6px;color:#5F5E5A;font-size:10px;cursor:pointer;font-family:inherit;white-space:nowrap">Browse flows</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ ACTION FLOWS ══════════════════════ -->
+<div class="page" id="page-af">
+  <div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:15px;font-weight:500">Action Flows</div><div style="font-size:11px;color:#888780;margin-top:2px">7 active flows · all outputs saved to Knowledge Base automatically</div></div><button class="btn-p" onclick="document.getElementById('fc-welcome').click()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="#E1F5EE" stroke-width="1.5" stroke-linecap="round"></path></svg>Run a flow</button></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <div class="fpill active" id="fa-all" onclick="filterFlows('all')">All</div>
+    <div class="fpill" id="fa-client" onclick="filterFlows('client')">Client &amp; applicant</div>
+    <div class="fpill" id="fa-match" onclick="filterFlows('match')">Matching &amp; outreach</div>
+    <div class="fpill" id="fa-val" onclick="filterFlows('val')">Valuation</div>
+    <div class="fpill" id="fa-social" onclick="filterFlows('social')">Social</div>
+    <div class="fpill" id="fa-comp" onclick="filterFlows('comp')">Compliance</div>
+  </div>
+  <div class="flows-grid">
+    <div class="fc sel" id="fc-welcome" data-cat="client" onclick="selectFlow('welcome')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#E1F5EE"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="#085041" stroke-width="1.3"></path><path d="M2 4l6 4 6-4" stroke="#085041" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">Generate welcome</div><div class="ff">fn_generate_welcome()</div></div></div><span class="badge bg">Active</span></div><div class="fdesc">Same-day welcome. HubSpot record. Output saved to KB on completion.</div><div class="fc-foot"><span class="fmodel">Claude Sonnet</span><span class="badge bx">New enquiry</span></div></div>
+    <div class="fc" id="fc-applicant" data-cat="client" onclick="selectFlow('applicant')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#EEEDFE"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="3" stroke="#3C3489" stroke-width="1.3"></circle><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#3C3489" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">Register applicant</div><div class="ff">fn_register_applicant()</div></div></div><span class="badge bp">Running</span></div><div class="fdesc">Full intake. Applicant profile + first match saved to KB as playbook.</div><div class="fc-foot"><span class="fmodel">Claude Sonnet · 9 inputs</span><span class="badge bx">First contact</span></div></div>
+    <div class="fc" id="fc-match" data-cat="match" onclick="selectFlow('match')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#E1F5EE"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="8" r="3" stroke="#085041" stroke-width="1.3"></circle><circle cx="11" cy="8" r="3" stroke="#085041" stroke-width="1.3"></circle><path d="M8 5v6" stroke="#085041" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">Match applicants</div><div class="ff">fn_match_applicants()</div></div></div><span class="badge bg">Active</span></div><div class="fdesc">Buyers: Active segment. Claude scoring against KB criteria. Match rationale stored in KB.</div><div class="fc-foot"><span class="fmodel">Claude Sonnet</span><span class="badge bx">New property</span></div></div>
+    <div class="fc" id="fc-val" data-cat="val" onclick="selectFlow('val')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#FAEEDA"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 13L6 8l3 3 5-7" stroke="#633806" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 2v11h12" stroke="#633806" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">Valuation briefing</div><div class="ff">fn_valuation_brief()</div></div></div><span class="badge ba">3 this month</span></div><div class="fdesc">Land Registry + portal comparables. Each valuation brief auto-saved to KB as methodology record.</div><div class="fc-foot"><span class="fmodel">Claude Opus</span><span class="badge bx">Valuation booked</span></div></div>
+    <div class="fc" id="fc-social" data-cat="social" onclick="selectFlow('social')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#FBEAF0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" stroke="#72243E" stroke-width="1.3"></rect><rect x="9" y="2" width="5" height="5" rx="1.5" stroke="#72243E" stroke-width="1.3"></rect><rect x="2" y="9" width="5" height="5" rx="1.5" stroke="#72243E" stroke-width="1.3"></rect><path d="M11.5 9v6M9 11.5h6" stroke="#72243E" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">Social content draft</div><div class="ff">fn_social_draft()</div></div></div><span class="badge bpk">New</span></div><div class="fdesc">Brand-voice captions, hashtags, photo briefs. Approved posts saved to KB as content playbook.</div><div class="fc-foot"><span class="fmodel">Claude Sonnet</span><span class="badge bx">Content calendar</span></div></div>
+    <div class="fc" id="fc-outreach" data-cat="match" onclick="selectFlow('outreach')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#EEEDFE"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4a1 1 0 011-1h10a1 1 0 011 1v1L8 9 2 5V4z" stroke="#3C3489" stroke-width="1.3"></path><path d="M2 5v7a1 1 0 001 1h10a1 1 0 001-1V5" stroke="#3C3489" stroke-width="1.3"></path></svg></div><div><div class="fn">Draft outreach</div><div class="ff">fn_draft_outreach()</div></div></div><span class="badge bp">Daily</span></div><div class="fdesc">Database outreach drafts. Successful patterns saved to KB for future cadence optimisation.</div><div class="fc-foot"><span class="fmodel">GPT-4o mini</span><span class="badge bx">Daily cadence</span></div></div>
+    <div class="fc" id="fc-kyc" data-cat="comp" onclick="selectFlow('kyc')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#F1EFE8"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="2" stroke="#444441" stroke-width="1.3"></rect><path d="M6 6h4M6 8.5h4M6 11h2" stroke="#444441" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">KYC / AML status</div><div class="ff">fn_kyc_status()</div></div></div><span class="badge bx">Compliance</span></div><div class="fdesc">Reads HubSpot KYC fields. Blocked escalations auto-saved to KB compliance log.</div><div class="fc-foot"><span class="fmodel">Claude Haiku</span><span class="badge bx">Any progression</span></div></div>
+  </div>
+  <div class="detail-panel">
+    <div class="dh"><div id="d-icon" style="width:28px;height:28px;border-radius:7px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="#085041" stroke-width="1.3"></path><path d="M2 4l6 4 6-4" stroke="#085041" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="dt" id="d-title">fn_generate_welcome()</div><div class="ds" id="d-sub">POST /api/bot/welcome · Claude Sonnet · output → KB on completion</div></div><div style="margin-left:auto;display:flex;gap:7px;align-items:center"><span class="badge bg" id="d-badge">Active</span><button class="run-btn" style="width:auto;padding:6px 14px">Run flow</button></div></div>
+    <div class="db"><div class="dl"><div><div class="slbl">Steps</div><div class="steps-list" id="d-steps"><div class="step-it"><div class="sn sng">1</div><div><div class="sname">Intent classified</div><div class="sdetail">WELCOME_CLIENT detected. Required fields validated.</div></div></div><div class="step-it"><div class="sn sng">2</div><div><div class="sname">HubSpot create</div><div class="sdetail">Contact created. Lifecycle Stage → Welcome Sent. Source tagged.</div></div></div><div class="step-it"><div class="sn snp">3</div><div><div class="sname">Claude drafts message</div><div class="sdetail">Sonnet produces welcome. Max 1,000 tokens. Brand voice context loaded from KB.</div></div></div><div class="step-it"><div class="sn sng">4</div><div><div class="sname">Dispatch or return + KB save</div><div class="sdetail">dispatch: true → HubSpot email. Completed output auto-saved to KB with provenance.</div></div></div></div></div><div><div class="slbl">Input schema</div><div class="schema-box" id="d-input"><div class="stitle">Input fields</div><div class="srow"><span class="sf">client_name</span><span class="st">string</span><span class="sreq">req</span></div><div class="srow"><span class="sf">source</span><span class="st">enum</span><span class="sreq">req</span></div><div class="srow"><span class="sf">agent_name</span><span class="st">string</span><span class="sreq">req</span></div><div class="srow"><span class="sf">dispatch</span><span class="st">boolean</span><span class="sreq">req</span></div><div class="srow"><span class="sf">budget_gbp</span><span class="st">integer</span><span class="sopt">opt</span></div></div></div></div><div class="dr-col"><div><div class="slbl">Output schema</div><div class="schema-box" id="d-output"><div class="stitle">Output fields</div><div class="srow"><span class="sf">status</span><span class="st">"ok"|"error"</span></div><div class="srow"><span class="sf">message_draft</span><span class="st">string</span></div><div class="srow"><span class="sf">hubspot_contact_id</span><span class="st">string|null</span></div><div class="srow"><span class="sf">kb_entry_id</span><span class="st">string</span></div></div></div><div><div class="slbl">Validation</div><div class="val-box" id="d-val"><div class="vrow"><span class="vf">client_name</span><span class="vr">min 2 chars</span></div><div class="vrow"><span class="vf">source</span><span class="vr">Rightmove|Zoopla|Referral|Direct|Other</span></div><div class="vrow"><span class="vf">dispatch</span><span class="vr">boolean required</span></div></div></div><div class="kyc-gate" id="d-kyc" style="display:none"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 4v4c0 3 2.5 4.7 5 5.5 2.5-.8 5-2.5 5-5.5V4L7 1z" stroke="#085041" stroke-width="1.3"></path><path d="M5 7l1.5 1.5L9 6" stroke="#085041" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>KYC complete required before progression</div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ KNOWLEDGE BASE ══════════════════════ -->
+<div class="page" id="page-kb">
+
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:15px;font-weight:500">Knowledge Base</div>
+      <div style="font-size:11px;color:#888780;margin-top:2px">Chat captures, flow outputs, and source documents — context available across all AI models</div>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn-g">Import from Notion</button>
+      <button class="btn-p"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="#E1F5EE" stroke-width="1.5" stroke-linecap="round"></path></svg>Add entry</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="kb-stats">
+    <div class="kb-stat"><div class="kb-stat-val">24</div><div class="kb-stat-label">Total entries</div></div>
+    <div class="kb-stat"><div class="kb-stat-val" style="color:#D4537E">8</div><div class="kb-stat-label">From chats</div></div>
+    <div class="kb-stat"><div class="kb-stat-val" style="color:#3C3489">6</div><div class="kb-stat-label">From flow runs</div></div>
+    <div class="kb-stat"><div class="kb-stat-val">10</div><div class="kb-stat-label">Source docs</div></div>
+    <div class="kb-stat"><div class="kb-stat-val" style="color:#0F6E56">91%</div><div class="kb-stat-label">Context coverage</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;flex:1;min-height:0">
+
+    <!-- List -->
+    <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto">
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <div class="kb-filter active" id="kf-all" onclick="filterKB('all')">All</div>
+        <div class="kb-filter" id="kf-chat" onclick="filterKB('chat')" style="border-color:#D4537E;color:#72243E">From chats</div>
+        <div class="kb-filter" id="kf-flow" onclick="filterKB('flow')">From flows</div>
+        <div class="kb-filter" id="kf-doc" onclick="filterKB('doc')">Source docs</div>
+      </div>
+
+      <!-- Chat captures -->
+      <div style="font-size:9px;font-weight:600;color:#D4537E;letter-spacing:.5px;text-transform:uppercase;padding:2px 0">From chats &amp; flow runs</div>
+
+      <div class="kb-item sel" id="kbi-kb-match-w11" data-cat="chat" onclick="selectKB('kb-match-w11')">
+        <div class="kb-item-top"><div class="kb-item-title">W11 applicant matching criteria playbook</div><span class="kb-type kt-playbook">Playbook</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">chat capture</span><span class="kb-provenance">Saved by Curtis · 4 min ago</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-opus">Opus</span><span class="model-tag-sm mt-haiku">Haiku</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <div class="kb-item" id="kbi-kb-val-method" data-cat="flow" onclick="selectKB('kb-val-method')">
+        <div class="kb-item-top"><div class="kb-item-title">Valuation methodology — W11 spring 2026</div><span class="kb-type kt-playbook">Playbook</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">flow output</span><span class="kb-provenance">Valuation Brief · 22 Abbotsbury · 2d ago</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-opus">Opus</span><span class="model-tag-sm mt-haiku">Haiku</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <div class="kb-item" id="kbi-kb-kyc-flow" data-cat="flow" onclick="selectKB('kb-kyc-flow')">
+        <div class="kb-item-top"><div class="kb-item-title">KYC escalation workflow — overdue contacts</div><span class="kb-type kt-workflow">Workflow</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">flow output</span><span class="kb-provenance">KYC / AML Status · Mrs Patterson · yesterday</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-opus">Opus</span><span class="model-tag-sm mt-haiku">Haiku</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <div class="kb-item" id="kbi-kb-social-voice" data-cat="chat" onclick="selectKB('kb-social-voice')">
+        <div class="kb-item-top"><div class="kb-item-title">Social caption rules — Curtis Sloane voice</div><span class="kb-type kt-playbook">Playbook</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">chat capture</span><span class="kb-provenance">Saved by Curtis · Mon 14 Apr</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-opus">Opus</span><span class="model-tag-sm mt-haiku">Haiku</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <div class="kb-item" data-cat="chat" onclick="selectKB('kb-outreach-pattern')">
+        <div class="kb-item-top"><div class="kb-item-title">Database outreach — high-response patterns</div><span class="kb-type kt-playbook">Playbook</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">chat capture</span><span class="kb-provenance">Saved by Marta · Mon 14 Apr</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <div class="kb-item" data-cat="flow" onclick="void 0">
+        <div class="kb-item-top"><div class="kb-item-title">Applicant registration SOP — S. Chen session</div><span class="kb-type kt-sop">SOP</span></div>
+        <div class="kb-item-meta"><span class="kb-type kt-capture" style="font-size:9px">flow output</span><span class="kb-provenance">Register Applicant · Today · auto-generated</span></div>
+        <div class="kb-item-meta" style="margin-top:4px"><span style="font-size:9px;color:#888780">Available in:</span><div class="kb-models"><span class="model-tag-sm mt-sonnet">Sonnet</span><span class="model-tag-sm mt-opus">Opus</span><span class="model-tag-sm mt-haiku">Haiku</span><span class="model-tag-sm mt-gpt">GPT-4o</span></div></div>
+      </div>
+
+      <!-- Source docs -->
+      <div style="font-size:9px;font-weight:600;color:#888780;letter-spacing:.5px;text-transform:uppercase;padding:6px 0 2px">Source documents</div>
+
+      <div class="kb-item" data-cat="doc" onclick="void 0">
+        <div class="kb-item-top"><div class="kb-item-title">New contact process guide</div><span class="kb-type kt-doc">Doc</span></div>
+        <div class="kb-item-meta"><span class="kb-provenance">Notion · Updated today</span><div class="kb-models" style="margin-left:4px"><span class="model-tag-sm mt-human">Human</span></div></div>
+      </div>
+      <div class="kb-item" data-cat="doc" onclick="void 0">
+        <div class="kb-item-top"><div class="kb-item-title">Brand voice &amp; execution plan</div><span class="kb-type kt-doc">Doc</span></div>
+        <div class="kb-item-meta"><span class="kb-provenance">Notion · Apr 2025</span><div class="kb-models" style="margin-left:4px"><span class="model-tag-sm mt-human">Human</span></div></div>
+      </div>
+      <div class="kb-item" data-cat="doc" onclick="void 0">
+        <div class="kb-item-top"><div class="kb-item-title">Active pipeline guide — Tier 1/2/3</div><span class="kb-type kt-doc">Doc</span></div>
+        <div class="kb-item-meta"><span class="kb-provenance">Notion · Apr 10</span><div class="kb-models" style="margin-left:4px"><span class="model-tag-sm mt-human">Human</span></div></div>
+      </div>
+    </div>
+
+    <!-- Detail -->
+    <div class="kb-detail">
+      <div class="kb-detail-hdr">
+        <div class="kb-detail-icon" style="background:#E1F5EE" id="kd-icon">🏠</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:500;color:#1a1a18;margin-bottom:2px" id="kd-title">W11 applicant matching criteria playbook</div>
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span class="kb-type kt-playbook" id="kd-type">Playbook</span>
+            <span style="font-size:10px;color:#888780" id="kd-provenance">Captured from chat session · Claude Sonnet · Saved by Curtis · 4 min ago</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+          <button class="btn-p" style="font-size:11px;padding:5px 12px">Use in chat</button>
+          <button class="btn-g" style="font-size:10px">Edit entry</button>
+        </div>
+      </div>
+
+      <div class="kb-detail-body">
+
+        <!-- Content -->
+        <div class="kb-detail-section" id="kd-steps-section">
+          <div class="kb-detail-label">Playbook steps</div>
+          <div id="kd-steps"><div class="kb-step"><div class="kb-step-n">1</div><div><div class="kb-step-text">Hard filter first — Python only</div><div class="kb-step-note">Budget must be ≥ property price × 0.95. Bedrooms must be within stated min/max range. Applied before any AI call.</div></div></div><div class="kb-step"><div class="kb-step-n">2</div><div><div class="kb-step-text">Must-have features are non-negotiable</div><div class="kb-step-note">If applicant listed garden, parking, or quiet as must-have, properties without these are excluded regardless of score.</div></div></div><div class="kb-step"><div class="kb-step-n">3</div><div><div class="kb-step-text">Financing strength weights the score</div><div class="kb-step-note">Cash buyer always scores higher than AIP. AIP held scores higher than mortgage required. AIP pending = flagged.</div></div></div><div class="kb-step"><div class="kb-step-n">4</div><div><div class="kb-step-text">KYC status is separate from match score</div><div class="kb-step-note">KYC-incomplete applicants are returned in results but flagged as can_progress: false. They cannot proceed to offer.</div></div></div><div class="kb-step"><div class="kb-step-n">5</div><div><div class="kb-step-text">Top 3–5 results with rationale</div><div class="kb-step-note">Each result includes a plain-English match reason. Rationale stored here for reference across sessions.</div></div></div></div>
+        </div>
+
+        <!-- Notes -->
+        <div class="kb-detail-section">
+          <div class="kb-detail-label">Context note</div>
+          <div class="kb-detail-text" id="kd-note" style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:7px;padding:9px 11px;font-size:11px;line-height:1.6;color:#5F5E5A">Derived from the Match Applicants session on 14 Ladbroke Road W11 (Apr 22). The 2-stage logic — Python hard filter then Claude scoring — was confirmed as the preferred approach after the earlier valuation session showed that AI-only filtering produced too many near-misses on budget. This playbook is loaded automatically whenever Match Applicants runs.</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <!-- Provenance trail -->
+          <div class="kb-detail-section" style="margin-bottom:0">
+            <div class="kb-detail-label">Provenance trail</div>
+            <div class="prov-trail" id="kd-prov"><div class="prov-item"><div class="prov-dot" style="background:#D4537E"></div><span class="prov-label">Chat session — 14 Ladbroke Road matching</span><span class="prov-meta">Today 09:41 · Claude Sonnet</span></div><div class="prov-item"><div class="prov-dot" style="background:#7F77DD"></div><span class="prov-label">Saved to KB by Curtis</span><span class="prov-meta">Today 09:45</span></div><div class="prov-item"><div class="prov-dot" style="background:#1D9E75"></div><span class="prov-label">Available to all models in workspace</span><span class="prov-meta">Automatic · no action needed</span></div></div>
+          </div>
+
+          <!-- Context availability -->
+          <div class="kb-detail-section" style="margin-bottom:0">
+            <div class="kb-detail-label">Available to models</div>
+            <div id="kd-models">
+              <div class="ctx-row"><span class="ctx-model">Claude Sonnet</span><span class="ctx-avail ctx-yes">✓ Loaded automatically</span></div>
+              <div class="ctx-row"><span class="ctx-model">Claude Opus</span><span class="ctx-avail ctx-yes">✓ Loaded automatically</span></div>
+              <div class="ctx-row"><span class="ctx-model">Claude Haiku</span><span class="ctx-avail ctx-yes">✓ Loaded automatically</span></div>
+              <div class="ctx-row"><span class="ctx-model">GPT-4o / GPT-4o mini</span><span class="ctx-avail ctx-yes">✓ Loaded automatically</span></div>
+              <div class="ctx-row" style="padding-top:8px;border-top:1px solid #F5F4F0;margin-top:4px"><span style="font-size:10px;color:#888780">Any model switching within this workspace automatically receives this entry as system context. No re-upload required.</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ SOCIAL (abbreviated) ══════════════════════ -->
+<div class="page" id="page-sm">
+  <div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:15px;font-weight:500">Social management</div><div style="font-size:11px;color:#888780;margin-top:2px">Social Content Draft · Make.com · Instagram + LinkedIn · Mon / Wed / Fri</div></div><button class="btn-p">Draft new post</button></div>
+  <div style="background:#FAEEDA;border:1px solid #EF9F27;border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:9px"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#633806" stroke-width="1.3"></circle><path d="M8 5v4M8 11v.5" stroke="#633806" stroke-width="1.5" stroke-linecap="round"></path></svg><div style="flex:1;font-size:11px;color:#633806"><span style="font-weight:500">7 posts awaiting director approval</span> — CS-02 through CS-09 are in draft. Approved posts fire automatically to Make.com. Approved captions are saved to KB as content playbook.</div><button class="btn-g" style="font-size:10px;border-color:#EF9F27;color:#633806" onclick="showPage('kb')">View in KB →</button></div>
+  <div class="two-col">
+    <div class="card"><div class="slbl">April content schedule</div><div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #F5F4F0"><span style="font-size:10px;font-family:'Courier New',monospace;color:#888780;min-width:45px">CS-01</span><div style="flex:1"><div style="font-size:11px;font-weight:500">Hero relaunch — Belonging</div><div style="font-size:10px;color:#888780">7 Apr · Carousel 6 · IG + LI</div></div><span class="badge bg">Live</span><span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#E1F5EE;color:#085041;margin-left:4px">KB ✓</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #F5F4F0"><span style="font-size:10px;font-family:'Courier New',monospace;color:#888780;min-width:45px">CS-02</span><div style="flex:1"><div style="font-size:11px;font-weight:500">Abbotsbury Rd morning — Abundance</div><div style="font-size:10px;color:#888780">9 Apr · Reel 30–45s · IG</div></div><span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#F1EFE8;color:#888780">Draft</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #F5F4F0"><span style="font-size:10px;font-family:'Courier New',monospace;color:#888780;min-width:45px">CS-03</span><div style="flex:1"><div style="font-size:11px;font-weight:500">40 years of buyers — Local authority</div><div style="font-size:10px;color:#888780">11 Apr · Single · LI</div></div><span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#F1EFE8;color:#888780">Draft</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #F5F4F0"><span style="font-size:10px;font-family:'Courier New',monospace;color:#888780;min-width:45px">CS-04</span><div style="flex:1"><div style="font-size:11px;font-weight:500">Wisteria season — Abundance</div><div style="font-size:10px;color:#888780">14 Apr · Carousel 5 · IG</div></div><span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#FAEEDA;color:#633806">Due today</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0"><span style="font-size:10px;font-family:'Courier New',monospace;color:#888780;min-width:45px">CS-05–09</span><div style="flex:1"><div style="font-size:11px;color:#888780">Discovery · Belonging · Local authority posts</div></div><span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#F1EFE8;color:#888780">Draft</span></div>
+    </div></div>
+    <div class="card"><div class="slbl">KB — From Social Flow Outputs</div><div style="font-size:11px;color:#5F5E5A;line-height:1.6;margin-bottom:10px">Approved posts and their captions are automatically saved to the knowledge base as content playbook entries. Every future Social Content Draft run loads previous approved captions as style reference — so voice consistency improves over time without re-prompting.</div><div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:8px;padding:6px;background:#F5F4F0;border-radius:7px"><span style="font-size:12px">🎨</span><div style="flex:1"><div style="font-size:11px;font-weight:500;color:#1a1a18">Social caption rules — CS voice</div><div style="font-size:10px;color:#888780">15 rules · all models · updated Mon 14 Apr</div></div><button class="btn-g" style="font-size:10px" onclick="showPage('kb');selectKB('kb-social-voice')">View</button></div><div style="display:flex;align-items:center;gap:8px;padding:6px;background:#F5F4F0;border-radius:7px"><span style="font-size:12px">📅</span><div style="flex:1"><div style="font-size:11px;font-weight:500;color:#1a1a18">CS-01 approved — caption archived</div><div style="font-size:10px;color:#888780">Belonging pillar · 7 Apr · Claude Sonnet</div></div><button class="btn-g" style="font-size:10px" onclick="showPage('kb')">View</button></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ APPS HUB (abbreviated) ══════════════════════ -->
+<div class="page" id="page-ah">
+  <div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:15px;font-weight:500">Apps hub</div><div style="font-size:11px;color:#888780;margin-top:2px">Connected integrations · data flows to KB automatic</div></div><button class="btn-p">Add integration</button></div>
+  <div class="card"><div class="slbl" style="margin-bottom:10px">Connected apps</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#FFF1E6;display:flex;align-items:center;justify-content:center;font-size:16px">🟠</div><div><div style="font-size:12px;font-weight:500">HubSpot CRM</div><div style="font-size:10px;color:#888780">1,298 contacts</div></div></div><div style="font-size:10px;color:#5F5E5A">Contact records, KYC fields, pipeline stages, activity log. Flow outputs create HubSpot notes automatically.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#F0F0F0;display:flex;align-items:center;justify-content:center;font-size:14px">N</div><div><div style="font-size:12px;font-weight:500">Notion</div><div style="font-size:10px;color:#888780">Knowledge base source</div></div></div><div style="font-size:10px;color:#5F5E5A">Source docs sync to KB automatically. Brand voice doc injected into social flow system context on every call.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected · 6 docs</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#E8F8F0;display:flex;align-items:center;justify-content:center;font-size:14px">⚡</div><div><div style="font-size:12px;font-weight:500">Make.com</div><div style="font-size:10px;color:#888780">Social automation</div></div></div><div style="font-size:10px;color:#5F5E5A">Webhook receiver for approved social posts. Canva → Instagram → LinkedIn → HubSpot note → Drive archive.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#E8F8F0;display:flex;align-items:center;justify-content:center;font-size:16px">✓</div><div><div style="font-size:12px;font-weight:500">Claude API</div><div style="font-size:10px;color:#888780">Sonnet · Opus · Haiku</div></div></div><div style="font-size:10px;color:#5F5E5A">Multi-model routing. KB context injected automatically per request. Model switch = same context, different capability.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected · 94 calls today</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#F0F4FF;display:flex;align-items:center;justify-content:center;font-size:14px">G</div><div><div style="font-size:12px;font-weight:500">OpenAI</div><div style="font-size:10px;color:#888780">GPT-4o · GPT-4o mini</div></div></div><div style="font-size:10px;color:#5F5E5A">Outreach drafting (GPT-4o mini). KB context injected same as Claude — workspace context is model-agnostic.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected · 47 drafts</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+      <div style="background:#F5F4F0;border:1px solid #D3D1C7;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px"><div style="display:flex;align-items:center;gap:8px"><div style="width:30px;height:30px;border-radius:7px;background:#E8F0FE;display:flex;align-items:center;justify-content:center;font-size:14px">G</div><div><div style="font-size:12px;font-weight:500">Google Workspace</div><div style="font-size:10px;color:#888780">Gmail · Calendar · Drive</div></div></div><div style="font-size:10px;color:#5F5E5A">Calendar events shown in Command Centre. Gmail dispatch for welcome messages. Drive archive for social assets.</div><div style="display:flex;align-items:center;gap:5px"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75"></div><span style="font-size:10px;color:#085041;font-weight:500">Connected</span><button class="btn-g" style="font-size:9px;margin-left:auto">Manage</button></div></div>
+    </div>
+  </div>
+  <div class="card"><div class="slbl" style="margin-bottom:8px">How KB context reaches every model</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+    <div style="background:#F5F4F0;border-radius:7px;padding:9px;text-align:center"><div style="font-size:18px;margin-bottom:5px">💬</div><div style="font-size:11px;font-weight:500;margin-bottom:3px">Chat or flow runs</div><div style="font-size:10px;color:#5F5E5A">Agent works. KB entry created automatically or saved manually.</div></div>
+    <div style="background:#F5F4F0;border-radius:7px;padding:9px;text-align:center"><div style="font-size:18px;margin-bottom:5px">📚</div><div style="font-size:11px;font-weight:500;margin-bottom:3px">Stored in KB</div><div style="font-size:10px;color:#5F5E5A">Entry tagged with type, provenance, and workspace. Indexed for retrieval.</div></div>
+    <div style="background:#F5F4F0;border-radius:7px;padding:9px;text-align:center"><div style="font-size:18px;margin-bottom:5px">🔀</div><div style="font-size:11px;font-weight:500;margin-bottom:3px">Model switches</div><div style="font-size:10px;color:#5F5E5A">Team member opens new session or changes model. Relevant KB entries injected as system context.</div></div>
+    <div style="background:#F5F4F0;border-radius:7px;padding:9px;text-align:center"><div style="font-size:18px;margin-bottom:5px">⚡</div><div style="font-size:11px;font-weight:500;margin-bottom:3px">Context available</div><div style="font-size:10px;color:#5F5E5A">New model has full operational memory. No re-briefing. No lost context. Work continues.</div></div>
+  </div></div>
+</div>
+
+</div><!-- shell -->
+
+<script src="/static/workspace.js"></script>
+
+<!-- ══ MOBILE NAV BAR ══ -->
+<div class="mob-nav-bar">
+  <div class="mob-logo">My Team AI</div>
+  <div class="mob-ws-pill">Curtis Sloane · W11</div>
+  <div class="mob-avatar">CS</div>
+</div>
+
+<!-- ══ MOBILE PAGES ══ -->
+<div class="mob-pages">
+
+  <!-- COMMAND CENTRE -->
+  <div class="mob-page active" id="mob-cc">
+    <div class="mob-slbl">Red Signals</div>
+    <div class="mob-card">
+      <div class="mob-alert">
+        <div class="mob-alert-dot" style="background:#E24B4A"></div>
+        <div><div class="mob-alert-title" style="color:#A32D2D">KYC overdue — Mrs Patterson</div><div class="mob-alert-sub">Proof of funds — 6 days overdue</div></div>
+      </div>
+      <div class="mob-alert">
+        <div class="mob-alert-dot" style="background:#E24B4A"></div>
+        <div><div class="mob-alert-title" style="color:#A32D2D">94 Portland Rd calls overdue</div></div>
+      </div>
+      <div class="mob-alert">
+        <div class="mob-alert-dot" style="background:#BA7517"></div>
+        <div><div class="mob-alert-title" style="color:#633806">7 social posts await approval</div></div>
+      </div>
+    </div>
+
+    <div class="mob-slbl">This week</div>
+    <div class="mob-metrics">
+      <div class="mob-mc"><div class="mob-ml">Active applicants</div><div class="mob-mv" style="color:#0F6E56">47</div><div class="mob-ms">+3 this week</div></div>
+      <div class="mob-mc"><div class="mob-ml">Active listings</div><div class="mob-mv">12</div><div class="mob-ms">3 under offer</div></div>
+      <div class="mob-mc"><div class="mob-ml">KYC complete</div><div class="mob-mv" style="color:#0F6E56">94%</div><div class="mob-ms">17 of 18</div></div>
+      <div class="mob-mc"><div class="mob-ml">Re-permission</div><div class="mob-mv" style="color:#854F0B">270</div><div class="mob-ms">Action needed</div></div>
+    </div>
+
+    <div class="mob-slbl">AI Command</div>
+    <div class="mob-card">
+      <div class="mob-chips">
+        <button class="mob-chip" onclick="mobRunChip('match for 14 Ladbroke Road')">Match applicants</button>
+        <button class="mob-chip" onclick="mobRunChip('valuation brief 22 Abbotsbury')">Valuation brief</button>
+        <button class="mob-chip" onclick="mobRunChip('KYC status Mrs Patterson')">KYC check</button>
+        <button class="mob-chip" onclick="mobRunChip('draft social wisteria season')">Social draft</button>
+      </div>
+      <div class="mob-chat" id="mob-agent-body">
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
+          <div class="mob-msg-card">Ready. Type a command or tap a chip above to run a flow.</div>
+        </div>
+      </div>
+      <div class="mob-agent-input">
+        <textarea id="mob-agent-input" rows="2" placeholder="e.g. match for 14 Ladbroke Road…"></textarea>
+        <button class="mob-agent-send" onclick="mobSendAgent()">→</button>
+      </div>
+    </div>
+
+    <div class="mob-slbl">Active Pipeline</div>
+    <div class="mob-card">
+      <div style="font-size:9px;font-weight:600;color:#888780;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">KYC In Progress</div>
+      <div class="mob-pcard"><div class="mob-pname">Mrs Patterson</div><div class="mob-pmeta">Proof of funds pending</div></div>
+      <div class="mob-pcard"><div class="mob-pname">D. Morley</div><div class="mob-pmeta">ID document requested</div></div>
+      <div style="font-size:9px;font-weight:600;color:#888780;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 8px">On Market</div>
+      <div class="mob-pcard"><div class="mob-pname">22 Abbotsbury Rd</div><div class="mob-pprice">£3.85M</div><div class="mob-pmeta">Day 12</div></div>
+      <div class="mob-pcard"><div class="mob-pname">8 Portland Road</div><div class="mob-pprice">£2.4M</div><div class="mob-pmeta">Day 4 · off-market first</div></div>
+    </div>
+
+    <div class="mob-slbl">Active Flows</div>
+    <div class="mob-card">
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#7F77DD"></div><div style="flex:1"><div class="mob-flow-name">Register Applicant</div><div class="mob-flow-meta">S. Chen · running</div></div><span class="mob-sbadge" style="background:#EEEDFE;color:#3C3489">Live</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#1D9E75"></div><div style="flex:1"><div class="mob-flow-name">Match Applicants</div><div class="mob-flow-meta">14 Ladbroke Rd · 4m ago</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Done</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#E24B4A"></div><div style="flex:1"><div class="mob-flow-name">KYC / AML Status</div><div class="mob-flow-meta">Mrs Patterson · blocked</div></div><span class="mob-sbadge" style="background:#FCEBEB;color:#A32D2D">Blocked</span></div>
+    </div>
+  </div>
+
+  <!-- ACTION FLOWS -->
+  <div class="mob-page" id="mob-af">
+    <div class="mob-slbl">Action Flows</div>
+    <div class="mob-card">
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#1D9E75"></div><div style="flex:1"><div class="mob-flow-name">Generate Welcome</div><div class="mob-flow-meta">Claude Sonnet · New enquiry</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Active</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#7F77DD"></div><div style="flex:1"><div class="mob-flow-name">Register Applicant</div><div class="mob-flow-meta">Claude Sonnet · First contact</div></div><span class="mob-sbadge" style="background:#EEEDFE;color:#3C3489">Running</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#1D9E75"></div><div style="flex:1"><div class="mob-flow-name">Match Applicants</div><div class="mob-flow-meta">Claude Sonnet · New property</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Active</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#BA7517"></div><div style="flex:1"><div class="mob-flow-name">Valuation Brief</div><div class="mob-flow-meta">Claude Opus · Valuation booked</div></div><span class="mob-sbadge" style="background:#FAEEDA;color:#633806">3 this month</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#D4537E"></div><div style="flex:1"><div class="mob-flow-name">Social Content Draft</div><div class="mob-flow-meta">Claude Sonnet · Content calendar</div></div><span class="mob-sbadge" style="background:#FBEAF0;color:#72243E">New</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#7F77DD"></div><div style="flex:1"><div class="mob-flow-name">Draft Outreach</div><div class="mob-flow-meta">GPT-4o mini · Daily cadence</div></div><span class="mob-sbadge" style="background:#EEEDFE;color:#3C3489">Daily</span></div>
+      <div class="mob-flow"><div class="mob-flow-dot" style="background:#B4B2A9"></div><div style="flex:1"><div class="mob-flow-name">KYC / AML Status</div><div class="mob-flow-meta">Claude Haiku · Any progression</div></div><span class="mob-sbadge" style="background:#F1EFE8;color:#444441">Compliance</span></div>
+    </div>
+  </div>
+
+  <!-- CHAT / KB -->
+  <div class="mob-page" id="mob-kb">
+    <div class="mob-slbl">Knowledge Base</div>
+    <div class="mob-kb-item"><div class="mob-kb-title">W11 matching criteria playbook</div><div class="mob-kb-meta">Saved from chat · Updated today</div></div>
+    <div class="mob-kb-item"><div class="mob-kb-title">Valuation method — W11 2026</div><div class="mob-kb-meta">Saved from chat · Yesterday</div></div>
+    <div class="mob-kb-item"><div class="mob-kb-title">KYC escalation workflow</div><div class="mob-kb-meta">Saved from flow · 3 days ago</div></div>
+    <div class="mob-kb-item"><div class="mob-kb-title">Applicant registration SOP</div><div class="mob-kb-meta">Uploaded · Standard doc</div></div>
+    <div class="mob-kb-item"><div class="mob-kb-title">Social brand voice guide</div><div class="mob-kb-meta">Saved from flow · Approved content</div></div>
+  </div>
+
+  <!-- SOCIAL -->
+  <div class="mob-page" id="mob-sm">
+    <div class="mob-slbl">Pending Approval — 7 posts</div>
+    <div class="mob-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:12px;font-weight:500;color:#1a1a18">Wisteria season in W11</span><span class="mob-sbadge" style="background:#FBEAF0;color:#72243E">Instagram</span></div>
+      <div style="font-size:12px;color:#5F5E5A;line-height:1.6;font-style:italic;margin-bottom:10px">"The wisteria on Addison Road has come back. It does this every year — quietly, extravagantly — and every year it stops people on the pavement."</div>
+      <div style="display:flex;gap:8px"><button class="btn-g" style="flex:1;font-size:12px;padding:7px">Edit</button><button class="btn-p" style="flex:1;font-size:12px;padding:7px;justify-content:center">Approve</button></div>
+    </div>
+    <div class="mob-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:12px;font-weight:500;color:#1a1a18">Q1 market update</span><span class="mob-sbadge" style="background:#F0F4FF;color:#185FA5">LinkedIn</span></div>
+      <div style="font-size:12px;color:#5F5E5A;line-height:1.6;font-style:italic;margin-bottom:10px">"W11 asking prices held firm in Q1 2026 — £1.8M average for a family house. Demand from relocating professionals continues to outpace supply."</div>
+      <div style="display:flex;gap:8px"><button class="btn-g" style="flex:1;font-size:12px;padding:7px">Edit</button><button class="btn-p" style="flex:1;font-size:12px;padding:7px;justify-content:center">Approve</button></div>
+    </div>
+  </div>
+
+  <!-- APPS HUB / TEAM -->
+  <div class="mob-page" id="mob-ah">
+    <div class="mob-slbl">Team</div>
+    <div class="mob-card">
+      <div class="mob-team-item"><div class="mob-team-av" style="background:#E1F5EE;color:#085041">CS</div><div><div class="mob-team-name">Curtis Sloane</div><div class="mob-team-role">Principal</div></div><div class="mob-status" style="background:#1D9E75"></div></div>
+      <div class="mob-team-item"><div class="mob-team-av" style="background:#EEEDFE;color:#3C3489">M</div><div><div class="mob-team-name">Marta</div><div class="mob-team-role">Applicant Manager</div></div><div class="mob-status" style="background:#1D9E75"></div></div>
+      <div class="mob-team-item"><div class="mob-team-av" style="background:#FAEEDA;color:#633806">S</div><div><div class="mob-team-name">Sebastian</div><div class="mob-team-role">Property Negotiator</div></div><div class="mob-status" style="background:#B4B2A9"></div></div>
+    </div>
+    <div class="mob-slbl">Connected Apps</div>
+    <div class="mob-card">
+      <div class="mob-flow"><div style="font-size:18px">📧</div><div style="flex:1"><div class="mob-flow-name">Gmail</div><div class="mob-flow-meta">Connected · CS &amp; Marta</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Active</span></div>
+      <div class="mob-flow"><div style="font-size:18px">📅</div><div style="flex:1"><div class="mob-flow-name">Google Calendar</div><div class="mob-flow-meta">Viewings sync enabled</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Active</span></div>
+      <div class="mob-flow"><div style="font-size:18px">💼</div><div style="flex:1"><div class="mob-flow-name">HubSpot CRM</div><div class="mob-flow-meta">Contacts &amp; pipeline synced</div></div><span class="mob-sbadge" style="background:#E1F5EE;color:#085041">Active</span></div>
+      <div class="mob-flow"><div style="font-size:18px">📸</div><div style="flex:1"><div class="mob-flow-name">Instagram Business</div><div class="mob-flow-meta">Approval workflow active</div></div><span class="mob-sbadge" style="background:#FAEEDA;color:#633806">Pending</span></div>
+    </div>
+
+    <div class="mob-slbl">Subscription plan</div>
+    <div class="mob-card" style="display:flex;flex-direction:column;gap:8px">
+
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1a1a18">Starter</div><div style="font-size:11px;color:#888780;line-height:1.4;margin-top:2px">Core intake &amp; matching flows</div></div>
+        <div style="font-size:14px;font-weight:500;color:#1a1a18;white-space:nowrap">£290<span style="font-size:10px;font-weight:300;color:#888780">/mo</span></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:10px;border:2px solid #1D9E75;background:#F9FFFB;border-radius:8px;padding:9px 10px;margin:0 -2px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1a1a18">Growth <span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;background:#E1F5EE;color:#085041;margin-left:4px">Current</span></div><div style="font-size:11px;color:#888780;line-height:1.4;margin-top:2px">+ valuation intelligence + KYC / AML</div></div>
+        <div style="font-size:14px;font-weight:500;color:#1a1a18;white-space:nowrap">£490<span style="font-size:10px;font-weight:300;color:#888780">/mo</span></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1a1a18">Retainer</div><div style="font-size:11px;color:#888780;line-height:1.4;margin-top:2px">+ social media, content &amp; brand voice</div></div>
+        <div style="font-size:14px;font-weight:500;color:#1a1a18;white-space:nowrap">£990<span style="font-size:10px;font-weight:300;color:#888780">/mo</span></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1a1a18">Scale</div><div style="font-size:11px;color:#888780;line-height:1.4;margin-top:2px">+ financial ops or BD Synch module</div></div>
+        <div style="font-size:14px;font-weight:500;color:#1a1a18;white-space:nowrap">£1,490<span style="font-size:10px;font-weight:300;color:#888780">/mo</span></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1a1a18">Enterprise</div><div style="font-size:11px;color:#888780;line-height:1.4;margin-top:2px">White-label, portfolio reporting, API</div></div>
+        <div style="font-size:13px;font-weight:400;color:#888780;white-space:nowrap">Custom</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:11px;color:#888780;padding:16px 0 8px">The platform behind this work is My Team AI → <a href="https://my-team-ai.uk/" target="_blank" rel="noopener" style="color:#888780">my-team-ai.uk</a></div>
+
+</div>
+
+<!-- ══ MOBILE BOTTOM NAV ══ -->
+<div class="mob-bottom-nav">
+  <div class="mob-bottom-nav-inner">
+    <div class="mob-nav-item active" onclick="showMobPage('cc')" id="mnav-cc">
+      <div class="mob-icon-wrap"><div class="mob-nav-icon">⚡</div><div class="mob-badge-dot">3</div></div>
+      <div class="mob-nav-label">Centre</div>
+    </div>
+    <div class="mob-nav-item" onclick="showMobPage('af')" id="mnav-af">
+      <div class="mob-icon-wrap"><div class="mob-nav-icon">⚙️</div></div>
+      <div class="mob-nav-label">Flows</div>
+    </div>
+    <div class="mob-nav-item" onclick="showMobPage('kb')" id="mnav-kb">
+      <div class="mob-icon-wrap"><div class="mob-nav-icon">🧠</div></div>
+      <div class="mob-nav-label">KB</div>
+    </div>
+    <div class="mob-nav-item" onclick="showMobPage('sm')" id="mnav-sm">
+      <div class="mob-icon-wrap"><div class="mob-nav-icon">📣</div></div>
+      <div class="mob-nav-label">Social</div>
+    </div>
+    <div class="mob-nav-item" onclick="showMobPage('ah')" id="mnav-ah">
+      <div class="mob-icon-wrap"><div class="mob-nav-icon">👥</div></div>
+      <div class="mob-nav-label">Team</div>
+    </div>
+  </div>
+</div>
+
+<!-- © 2026 Future Synch. All rights reserved. -->
+
+
+</body></html>
