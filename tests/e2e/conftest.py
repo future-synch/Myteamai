@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Request, expect
 from pytest_bdd import given, parsers, then, when
 
 from tests.e2e.live_server import STRIPPED_ENV, LiveServer, start_live_server
@@ -204,3 +206,54 @@ def step_no_token_stored(page: Page):
 @then("the browser's local storage is empty")
 def step_local_storage_empty(page: Page):
     assert page.evaluate("localStorage.length") == 0
+
+
+# ---------------------------------------------------------------------------
+# Request recording: assert on what the page sent, with a listener, not timing
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SentRequest:
+    method: str
+    path: str
+    request: Request
+
+    @property
+    def json(self):
+        return self.request.post_data_json
+
+
+@pytest.fixture(autouse=True)
+def sent_requests(page: Page) -> list[SentRequest]:
+    """Every request the page sends, in order. Attached when the page is created,
+    before any navigation, so nothing the test does can happen unobserved."""
+    seen: list[SentRequest] = []
+    page.on(
+        "request",
+        lambda request: seen.append(
+            SentRequest(request.method, urlsplit(request.url).path, request)
+        ),
+    )
+    return seen
+
+
+def posts_to(sent_requests: list[SentRequest], path: str) -> list[SentRequest]:
+    return [r for r in sent_requests if r.method == "POST" and r.path == path]
+
+
+@then(parsers.parse('no POST to "{path}" was sent'))
+def step_no_post_sent(sent_requests, path: str):
+    assert posts_to(sent_requests, path) == [], f"the page sent POST {path}"
+
+
+@then(parsers.parse('a POST to "{path}" was sent with dispatch set to false'))
+def step_post_sent_without_dispatch(sent_requests, path: str):
+    sent = posts_to(sent_requests, path)
+    assert len(sent) == 1, f"expected one POST {path}, saw {len(sent)}"
+    assert sent[0].json["dispatch"] is False
+
+
+@then(parsers.parse('the browser sent POST "{first}" and then POST "{second}"'))
+def step_posts_in_order(sent_requests, first: str, second: str):
+    posts = [r.path for r in sent_requests if r.method == "POST"]
+    assert posts == [first, second], f"POST requests were {posts}"
