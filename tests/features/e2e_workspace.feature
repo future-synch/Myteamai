@@ -201,3 +201,107 @@ Feature: The new workspace page in a real browser (FS-76)
     Then the preview shows the text "<img src=x onerror=window.__xss=1>" literally
     And the thread contains no image, script or frame elements
     And window.__xss is undefined
+
+  # ---- everything not wired ----------------------------------------------
+
+  Scenario Outline: An unwired chip says "not connected yet" and sends nothing but /classify
+    Given I am signed in as the agent on the workspace
+    When I click the "<chip>" chip
+    Then the agent says the flow the classifier chose for "<chip>" isn't connected yet
+    And the browser sent only POST "/classify"
+
+    Examples:
+      | chip             |
+      | Match applicants |
+      | Valuation brief  |
+      | KYC status       |
+      | Draft outreach   |
+      | Social draft     |
+
+  Scenario Outline: Run flow on a flow card opens its form or says it is not connected
+    Given I am signed in as the agent on the workspace
+    When I run the "<flow>" flow from Action Flows
+    Then <outcome>
+    And no POST was sent
+
+    Examples:
+      | flow      | outcome                                                  |
+      | welcome   | the welcome form is shown in the Command Centre          |
+      | applicant | the registration form is shown in the Command Centre     |
+      | match     | the agent says "Match applicants" isn't connected yet    |
+      | val       | the agent says "Valuation briefing" isn't connected yet  |
+      | social    | the agent says "Social content draft" isn't connected yet |
+      | outreach  | the agent says "Draft outreach" isn't connected yet      |
+      | kyc       | the agent says "KYC / AML status" isn't connected yet    |
+
+  Scenario Outline: Each topbar tab activates its page
+    Given I am signed in as the agent on the workspace
+    When I click the "<tab>" tab
+    Then the "<tab>" tab and the "<page>" page are active and no other is
+    And no POST was sent
+
+    Examples:
+      | tab             | page |
+      | Command Centre  | cc   |
+      | Action Flows    | af   |
+      | Knowledge Base  | kb   |
+      | Social          | sm   |
+      | Apps Hub        | ah   |
+
+  Scenario Outline: The model dropdown opens, selects and updates the labels
+    Given I am signed in as the agent on the workspace
+    When I open the model dropdown
+    And I choose the "<model>" model
+    Then the model label reads "<model>"
+    And the agent header tag reads "<model> · KB loaded"
+    And the model dropdown is closed
+    And no POST was sent
+
+    Examples:
+      | model         |
+      | Claude Opus   |
+      | Claude Haiku  |
+      | GPT-4o        |
+      | Claude Sonnet |
+
+  Scenario Outline: The user panel opens on each tab and closes
+    Given I am signed in as the agent on the workspace
+    When I open the account menu
+    And I choose "<item>" from the account menu
+    Then the user panel is open and titled "<item>"
+    When I close the user panel
+    Then the user panel is closed
+    And no POST was sent
+
+    Examples:
+      | item          |
+      | Dashboard     |
+      | Documentation |
+      | Team          |
+      | Profile       |
+      | Settings      |
+
+  Scenario: Settings has a Stripe mount point and no card inputs
+    Given I am signed in as the agent on the workspace
+    When I open the account menu
+    And I choose "Settings" from the account menu
+    And I click "+ Add card"
+    Then the Stripe card element is empty
+    And there is no card number, expiry or CVC input anywhere in the page
+    And no POST was sent
+
+  # ---- mobile -------------------------------------------------------------
+
+  Scenario: Mobile - the agent input runs a free-text welcome and the page does not scroll sideways
+    Given the viewport is 390 by 844
+    And I am signed in as the agent on the workspace
+    When I type "Welcome new client, James Hyde, came through Rightmove" in the mobile agent box and tap send
+    Then the mobile thread shows a result card saying "Dear James Hyde,"
+    And the page has no horizontal scroll
+
+  Scenario: Mobile - the registration form fits the screen
+    Given the viewport is 390 by 844
+    And I am signed in as the agent on the workspace
+    When I type "register new applicant" in the mobile agent box and tap send
+    Then the registration form is shown in the mobile thread
+    And the page has no horizontal scroll
