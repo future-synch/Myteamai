@@ -7,9 +7,15 @@ needs no browser.
 """
 from __future__ import annotations
 
-import pytest
+import os
+import re
 
-from tests.e2e.live_server import LiveServer, start_live_server
+import httpx
+import pytest
+from playwright.sync_api import Page, expect
+from pytest_bdd import given, parsers, then, when
+
+from tests.e2e.live_server import STRIPPED_ENV, LiveServer, start_live_server
 from tests.e2e.login_helpers import (
     Credentials,
     load_agent_credentials,
@@ -124,3 +130,77 @@ def token_login(page, agent_credentials: Credentials):
         return seed_session(page, credentials or agent_credentials)
 
     return _token_login
+
+
+# ---------------------------------------------------------------------------
+# Steps shared by every e2e feature file (current /chat now, /workspace in FS-76)
+# ---------------------------------------------------------------------------
+
+@given("the app is running offline with the mock Claude client")
+def step_app_running_offline(live_server: LiveServer):
+    """Checks the safety properties of the server environment, every scenario."""
+    assert os.environ.get("ANTHROPIC_MODE") == "mock", "Claude must be in mock mode"
+    leaked = [name for name in STRIPPED_ENV if os.environ.get(name)]
+    assert not leaked, f"credentials must not be in the e2e server environment: {leaked}"
+    health = httpx.get(f"{live_server.url}/health", timeout=2.0, trust_env=False)
+    assert health.json()["status"] == "ok"
+
+
+@given("I am signed in as the agent on the chat page")
+def step_signed_in_on_chat(page: Page, token_login):
+    token_login()
+    page.goto("/chat")
+    expect(page.locator("#freeText")).to_be_visible()
+
+
+@when("I open the chat page with no stored session")
+def step_open_chat_without_session(page: Page):
+    page.goto("/chat")
+
+
+@when("I sign in through the login page as the agent")
+def step_sign_in_as_agent(ui_login):
+    ui_login()
+
+
+@when("I try to sign in through the login page with a wrong password")
+def step_sign_in_with_wrong_password(ui_login, agent_credentials: Credentials):
+    wrong = Credentials(agent_credentials.email, "not-the-password")
+    ui_login(wrong, wait_for_chat=False)
+
+
+@when(parsers.parse('I click "{label}"'))
+def step_click_label(page: Page, label: str):
+    page.get_by_text(label, exact=True).click()
+
+
+@then("I am on the login page")
+def step_on_login_page(page: Page, base_url: str):
+    expect(page).to_have_url(f"{base_url}/")
+
+
+@then("I am on the chat page")
+def step_on_chat_page(page: Page):
+    expect(page).to_have_url(re.compile(r"/chat$"))
+    expect(page.locator("#freeText")).to_be_visible()
+
+
+@then(parsers.parse('the login page shows the error "{message}"'))
+def step_login_error(page: Page, message: str):
+    expect(page.locator("#globalError")).to_have_text(message)
+
+
+@then("a session token is stored in the browser")
+def step_token_stored(page: Page):
+    assert page.evaluate("localStorage.getItem('token')"), "no token in localStorage"
+    assert page.evaluate("localStorage.getItem('role')") == "agent"
+
+
+@then("no session token is stored in the browser")
+def step_no_token_stored(page: Page):
+    assert page.evaluate("localStorage.getItem('token')") is None
+
+
+@then("the browser's local storage is empty")
+def step_local_storage_empty(page: Page):
+    assert page.evaluate("localStorage.length") == 0
