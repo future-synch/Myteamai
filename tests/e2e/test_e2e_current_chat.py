@@ -71,3 +71,23 @@ def step_client_name_error(page: Page, message: str):
 @then(parsers.parse('a bot message greets "{name}"'))
 def step_bot_message_greets(page: Page, name: str):
     expect(page.locator("#messages .msg.bot", has_text=f"Dear {name},")).to_be_visible()
+
+
+@then(parsers.parse('a success message mentions "{text}"'))
+def step_success_message_mentions(page: Page, text: str):
+    expect(page.locator("#messages .msg.success")).to_contain_text(text)
+
+
+@then(parsers.parse('the success message has an "{label}" line naming "{first}" and "{second}"'))
+def step_success_message_extracted_line(page: Page, label: str, first: str, second: str):
+    # chat.html renders: <small><strong>Extracted:</strong> Client = ... · Source = ...</small>
+    line = page.locator("#messages .msg.success small")
+    expect(line).to_contain_text(label)
+    expect(line).to_contain_text(first)
+    expect(line).to_contain_text(second)
+
+
+@then(parsers.parse('the success message contains the draft greeting "{greeting}"'))
+def step_success_message_draft(page: Page, greeting: str):
+    # The mock Claude client's welcome template opens "Dear <client name>,".
+    expect(page.locator("#messages .msg.success")).to_contain_text(greeting)

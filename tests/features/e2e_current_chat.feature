@@ -56,3 +56,11 @@ Feature: The current chat page in a real browser (FS-75)
     And I open the "Welcome Client" form
     When I click into the client name field and tab out without typing
     Then the client name field shows the error "Required"
+
+  Scenario: Free-text welcome is classified, extracted and drafted
+    Given I am signed in as the agent on the chat page
+    When I type "Welcome new client, James Hyde, came through Rightmove" in the free-text box and send it
+    Then a success message mentions "James Hyde"
+    And the success message has an "Extracted:" line naming "James Hyde" and "Rightmove"
+    And the success message contains the draft greeting "Dear James Hyde,"
+    And the browser sent POST "/classify" and then POST "/bot/welcome-from-text"
