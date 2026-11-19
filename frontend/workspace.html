@@ -268,48 +268,7 @@
         <!-- System greeting -->
         <div style="display:flex;align-items:flex-start;gap:8px">
           <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-          <div style="background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#1a1a18;line-height:1.55;max-width:90%">
-            Good morning, Curtis. 3 items need attention today.<br>
-            <span style="color:#A32D2D">·</span> Mrs Patterson — KYC proof of funds, day 6<br>
-            <span style="color:#A32D2D">·</span> 94 Portland Rd — calls not started<br>
-            <span style="color:#BA7517">·</span> 7 social posts awaiting your approval<br><br>
-            Type a command or use the chips above to run a flow. I can match applicants, register contacts, draft outreach, run valuations, check KYC, or set tasks.
-          </div>
-        </div>
-
-        <!-- Example: previous agent exchange -->
-        <div style="display:flex;justify-content:flex-end">
-          <div style="background:#F1EFE8;border-radius:12px 12px 2px 12px;padding:8px 12px;font-size:12px;color:#1a1a18;max-width:80%">
-            Match applicants for 14 Ladbroke Road — 4 bed £3.5M
-          </div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:8px">
-          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-          <div style="max-width:92%">
-            <div style="font-size:9px;color:#B4B2A9;margin-bottom:3px;padding-left:2px">Match Applicants · Buyers: Active · 18 searched · 1.4s · W11 criteria from KB</div>
-            <div style="background:#fff;border:1px solid #D3D1C7;border-radius:2px 10px 10px 10px;padding:10px 12px">
-              <div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Top matches — 14 Ladbroke Road W11</div>
-              <div class="mr"><span class="ma">Sarah Chen · £3.8M · cash</span><span class="sh">0.94</span><span class="mky kyo">KYC ✓</span></div>
-              <div class="mr"><span class="ma">James Hyde · £3.2M · AIP</span><span class="sh">0.81</span><span class="mky kyo">KYC ✓</span></div>
-              <div class="mr" style="margin-bottom:8px"><span class="ma">Tom Baker · £2.9M · AIP pend.</span><span class="sm">0.72</span><span class="mky kyw">KYC blocked</span></div>
-              <!-- Task / action row -->
-              <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8">
-                <button class="cab" onclick="agentAction('draft-intros')">Draft intros</button>
-                <button class="cab" onclick="agentAction('hubspot')">Log to HubSpot</button>
-                <button class="cab" onclick="agentAction('set-task')">Set viewing task</button>
-                <button class="cab" style="border-color:#AFA9EC;color:#3C3489" onclick="agentAction('save-kb')">Save to KB</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Task confirmation (shown after Set viewing task) -->
-        <div id="task-confirm" style="display:none;align-items:flex-start;gap:8px">
-          <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-          <div style="background:#E1F5EE;border:1px solid #5DCAA5;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#085041;max-width:90%">
-            ✓ Task set — <strong>Viewing: Sarah Chen · 14 Ladbroke Road</strong><br>
-            <span style="font-size:10px;color:#0F6E56">Assigned to Marta · Thu 24 Apr · HubSpot task created · calendar invite queued</span>
-          </div>
+          <div style="background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#1a1a18;line-height:1.55;max-width:90%">Ready. Type a command or use the chips above to run a flow.</div>
         </div>
 
       </div>
@@ -351,7 +310,7 @@
     <div class="fc" id="fc-kyc" data-cat="comp" onclick="selectFlow('kyc')"><div class="fc-top"><div style="display:flex;align-items:flex-start;gap:7px"><div class="fi" style="background:#F1EFE8"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="2" stroke="#444441" stroke-width="1.3"></rect><path d="M6 6h4M6 8.5h4M6 11h2" stroke="#444441" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="fn">KYC / AML status</div><div class="ff">fn_kyc_status()</div></div></div><span class="badge bx">Compliance</span></div><div class="fdesc">Reads HubSpot KYC fields. Blocked escalations auto-saved to KB compliance log.</div><div class="fc-foot"><span class="fmodel">Claude Haiku</span><span class="badge bx">Any progression</span></div></div>
   </div>
   <div class="detail-panel">
-    <div class="dh"><div id="d-icon" style="width:28px;height:28px;border-radius:7px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="#085041" stroke-width="1.3"></path><path d="M2 4l6 4 6-4" stroke="#085041" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="dt" id="d-title">fn_generate_welcome()</div><div class="ds" id="d-sub">POST /api/bot/welcome · Claude Sonnet · output → KB on completion</div></div><div style="margin-left:auto;display:flex;gap:7px;align-items:center"><span class="badge bg" id="d-badge">Active</span><button class="run-btn" style="width:auto;padding:6px 14px">Run flow</button></div></div>
+    <div class="dh"><div id="d-icon" style="width:28px;height:28px;border-radius:7px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="#085041" stroke-width="1.3"></path><path d="M2 4l6 4 6-4" stroke="#085041" stroke-width="1.3" stroke-linecap="round"></path></svg></div><div><div class="dt" id="d-title">fn_generate_welcome()</div><div class="ds" id="d-sub">POST /api/bot/welcome · Claude Sonnet · output → KB on completion</div></div><div style="margin-left:auto;display:flex;gap:7px;align-items:center"><span class="badge bg" id="d-badge">Active</span><button class="run-btn" id="d-run" onclick="runSelectedFlow()" style="width:auto;padding:6px 14px">Run flow</button></div></div>
     <div class="db"><div class="dl"><div><div class="slbl">Steps</div><div class="steps-list" id="d-steps"><div class="step-it"><div class="sn sng">1</div><div><div class="sname">Intent classified</div><div class="sdetail">WELCOME_CLIENT detected. Required fields validated.</div></div></div><div class="step-it"><div class="sn sng">2</div><div><div class="sname">HubSpot create</div><div class="sdetail">Contact created. Lifecycle Stage → Welcome Sent. Source tagged.</div></div></div><div class="step-it"><div class="sn snp">3</div><div><div class="sname">Claude drafts message</div><div class="sdetail">Sonnet produces welcome. Max 1,000 tokens. Brand voice context loaded from KB.</div></div></div><div class="step-it"><div class="sn sng">4</div><div><div class="sname">Dispatch or return + KB save</div><div class="sdetail">dispatch: true → HubSpot email. Completed output auto-saved to KB with provenance.</div></div></div></div></div><div><div class="slbl">Input schema</div><div class="schema-box" id="d-input"><div class="stitle">Input fields</div><div class="srow"><span class="sf">client_name</span><span class="st">string</span><span class="sreq">req</span></div><div class="srow"><span class="sf">source</span><span class="st">enum</span><span class="sreq">req</span></div><div class="srow"><span class="sf">agent_name</span><span class="st">string</span><span class="sreq">req</span></div><div class="srow"><span class="sf">dispatch</span><span class="st">boolean</span><span class="sreq">req</span></div><div class="srow"><span class="sf">budget_gbp</span><span class="st">integer</span><span class="sopt">opt</span></div></div></div></div><div class="dr-col"><div><div class="slbl">Output schema</div><div class="schema-box" id="d-output"><div class="stitle">Output fields</div><div class="srow"><span class="sf">status</span><span class="st">"ok"|"error"</span></div><div class="srow"><span class="sf">message_draft</span><span class="st">string</span></div><div class="srow"><span class="sf">hubspot_contact_id</span><span class="st">string|null</span></div><div class="srow"><span class="sf">kb_entry_id</span><span class="st">string</span></div></div></div><div><div class="slbl">Validation</div><div class="val-box" id="d-val"><div class="vrow"><span class="vf">client_name</span><span class="vr">min 2 chars</span></div><div class="vrow"><span class="vf">source</span><span class="vr">Rightmove|Zoopla|Referral|Direct|Other</span></div><div class="vrow"><span class="vf">dispatch</span><span class="vr">boolean required</span></div></div></div><div class="kyc-gate" id="d-kyc" style="display:none"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 4v4c0 3 2.5 4.7 5 5.5 2.5-.8 5-2.5 5-5.5V4L7 1z" stroke="#085041" stroke-width="1.3"></path><path d="M5 7l1.5 1.5L9 6" stroke="#085041" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>KYC complete required before progression</div></div></div>
   </div>
 </div>

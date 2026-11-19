@@ -100,10 +100,13 @@ const FD={
     val:[{f:'type',r:'client|applicant'},{f:'can_progress',r:'false if any item false'}],kyc:1}
 };
 
+let currentFlow = 'welcome';
+
 function selectFlow(id){
   document.querySelectorAll('.fc').forEach(c=>c.classList.remove('sel'));
   const card=document.getElementById('fc-'+id);if(card)card.classList.add('sel');
   const f=FD[id];if(!f)return;
+  currentFlow=id;
   document.getElementById('d-icon').style.background=f.ib;
   document.getElementById('d-icon').innerHTML=f.is;
   document.getElementById('d-title').textContent=f.t;
@@ -142,176 +145,223 @@ function signOut(){
   window.location.href = '/';
 }
 
-// ── AGENT COMMAND WINDOW ──────────────────────────────────────
-const AGENT_RESPONSES = {
-  match: {
-    fn: 'Match Applicants · Buyers: Active · 18 searched · 1.4s · W11 criteria from KB',
-    html: `<div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Top matches — 14 Ladbroke Road W11</div>
-      <div class="mr"><span class="ma">Sarah Chen · £3.8M · cash</span><span class="sh">0.94</span><span class="mky kyo">KYC ✓</span></div>
-      <div class="mr"><span class="ma">James Hyde · £3.2M · AIP</span><span class="sh">0.81</span><span class="mky kyo">KYC ✓</span></div>
-      <div class="mr" style="margin-bottom:8px"><span class="ma">Tom Baker · £2.9M · AIP pend.</span><span class="sm">0.72</span><span class="mky kyw">KYC blocked</span></div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8">
-        <button class="cab" onclick="agentAction('draft-intros')">Draft intros</button>
-        <button class="cab" onclick="agentAction('hubspot')">Log to HubSpot</button>
-        <button class="cab" onclick="agentAction('set-task')">Set viewing task</button>
-        <button class="cab" style="border-color:#AFA9EC;color:#3C3489" onclick="agentAction('save-kb')">Save to KB</button>
-      </div>`
-  },
-  register: {
-    fn: 'Register Applicant · HubSpot · KYC initiated · 2.1s',
-    html: `<div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Applicant registered — James Hyde</div>
-      <div style="font-size:11px;color:#5F5E5A;line-height:1.6">£3.2M · 4 bed · AIP held · Email preferred<br>HubSpot record created · Lifecycle Stage: Registered & Profiled<br>KYC checklist initiated · pof_received: false · id_received: false</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8;margin-top:8px">
-        <button class="cab" onclick="agentAction('send-welcome')">Send welcome email</button>
-        <button class="cab" onclick="agentAction('first-match')">Run first match</button>
-        <button class="cab" onclick="agentAction('kyc-chase')">Set KYC task</button>
-      </div>`
-  },
-  valuation: {
-    fn: 'Valuation Brief · Land Registry + Zoopla · Claude Opus · 3.8s · KB: W11 methodology loaded',
-    html: `<div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Valuation brief — 22 Abbotsbury Road W11</div>
-      <div style="font-size:11px;color:#5F5E5A;line-height:1.7">Guide price range: <strong style="color:#1a1a18">£3.6M – £3.9M</strong><br>Price per sq ft: <strong style="color:#1a1a18">£1,420 – £1,540</strong><br>5 comparables · recency weighted · spring 2026<br>South-facing garden premium applied (+9%)</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8;margin-top:8px">
-        <button class="cab" onclick="agentAction('save-kb')">Save to KB</button>
-        <button class="cab" onclick="agentAction('send-brief')">Send to client</button>
-      </div>`
-  },
-  kyc: {
-    fn: 'KYC / AML Status · HubSpot · Claude Haiku · 0.6s',
-    html: `<div style="font-size:11px;font-weight:500;color:#A32D2D;margin-bottom:7px">KYC blocked — Mrs Patterson</div>
-      <div style="font-size:11px;color:#5F5E5A;line-height:1.7">pof_received: <strong style="color:#A32D2D">false</strong> · Day 6 overdue<br>id_received: ✓ &nbsp; address_received: ✓<br>can_progress: <strong style="color:#A32D2D">false</strong> — no property introductions until clear</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8;margin-top:8px">
-        <button class="cab" onclick="agentAction('whatsapp-chase')">Draft WhatsApp chase</button>
-        <button class="cab" onclick="agentAction('escalate')">Escalate to manager</button>
-        <button class="cab" onclick="agentAction('set-task')">Set follow-up task</button>
-      </div>`
-  },
-  outreach: {
-    fn: 'Draft Outreach · GPT-4o mini · Long-term W11 residents · 1.1s',
-    html: `<div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Outreach draft — 30-year W11 residents</div>
-      <div style="font-size:11px;color:#5F5E5A;font-style:italic;line-height:1.7;background:#F9F9F7;padding:8px 10px;border-radius:6px;margin-bottom:8px">"Dear [Name], Spring on Portland Road is always a good moment to pause and think about what's next. If you've ever wondered what your home might achieve in today's market, I'd love to walk you through it — no pressure, just a conversation. Curtis."</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8">
-        <button class="cab" onclick="agentAction('approve-send')">Approve &amp; send</button>
-        <button class="cab" onclick="agentAction('save-kb')">Save pattern to KB</button>
-        <button class="cab" onclick="agentAction('regenerate')">Regenerate</button>
-      </div>`
-  },
-  social: {
-    fn: 'Social Content Draft · Claude Sonnet · Abundance pillar · brand voice from KB · 1.8s',
-    html: `<div style="font-size:11px;font-weight:500;color:#1a1a18;margin-bottom:7px">Social draft — CS-04 · Wisteria season</div>
-      <div style="font-size:11px;color:#5F5E5A;font-style:italic;line-height:1.7;background:#F9F9F7;padding:8px 10px;border-radius:6px;margin-bottom:8px"><strong style="font-style:normal;font-size:10px;color:#888780">Instagram · 127 words</strong><br>"The wisteria on Addison Road has come back. It does this every year — quietly, extravagantly — and every year it stops people on the pavement. This is what we mean when we say Holland Park is not just a postcode. It is a place that gives something back."<br><span style="font-size:10px;color:#888780">#HollandPark #W11 #CurtisSloane</span></div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #F1EFE8">
-        <button class="cab" onclick="agentAction('approve-post')" style="background:#1D9E75;border-color:#1D9E75;color:#E1F5EE">Approve &amp; schedule</button>
-        <button class="cab" onclick="agentAction('save-kb')">Save to KB</button>
-        <button class="cab" onclick="agentAction('regenerate')">Regenerate</button>
-      </div>`
-  },
-  default: {
-    fn: 'Claude Sonnet · KB context loaded',
-    html: `<div style="font-size:11px;color:#5F5E5A;line-height:1.65">I can run these flows from a natural language command:<br><br>
-      <span style="font-weight:500;color:#1a1a18">Match applicants</span> — "match for [address]"<br>
-      <span style="font-weight:500;color:#1a1a18">Register applicant</span> — "register [name], [budget], [beds]"<br>
-      <span style="font-weight:500;color:#1a1a18">Valuation brief</span> — "valuation brief [address]"<br>
-      <span style="font-weight:500;color:#1a1a18">KYC check</span> — "KYC status [name]"<br>
-      <span style="font-weight:500;color:#1a1a18">Draft outreach</span> — "draft outreach for [segment]"<br>
-      <span style="font-weight:500;color:#1a1a18">Social draft</span> — "draft social [pillar/theme]"<br>
-      <span style="font-weight:500;color:#1a1a18">Set task</span> — "set task [description] for [person]"<br><br>
-      Or use the chips above to start any flow instantly.</div>`
+// ── AGENT COMMAND WINDOW (FS-76) ──────────────────────────────
+// Every command goes to POST /classify first. At this stage every known intent
+// says plainly that it is not connected yet and runs nothing; the welcome and
+// register flows are wired next.
+//
+// Rule for this file: text that came from the user or from the server is put
+// in with textContent / createTextNode, never innerHTML. welcome_draft.html_body
+// is deliberately never rendered.
+
+async function postJSON(path, body){
+  let res;
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    return { ok: false, status: 0, data: { detail: 'Could not reach the server.' } };
   }
+  if (res.status === 401) {          // expired or missing session: back to the login page
+    signOut();
+    return { ok: false, status: 401, data: { detail: 'Session expired.' } };
+  }
+  const data = await res.json().catch(() => ({ detail: 'Invalid JSON response' }));
+  return { ok: res.ok, status: res.status, data };
+}
+
+// Human-readable reason from an error response (errors list, 422 detail list,
+// detail string, message, status).
+function reasonFrom(data){
+  if (data && Array.isArray(data.errors) && data.errors.length) return data.errors.join(', ');
+  if (data && Array.isArray(data.detail)) return data.detail.map(d => (d && d.msg) || JSON.stringify(d)).join(', ');
+  if (data && typeof data.detail === 'string') return data.detail;
+  if (data && typeof data.message === 'string' && data.message) return data.message;
+  if (data && typeof data.status === 'string') return data.status;
+  return 'Unknown error';
+}
+
+// ── tiny DOM builder: text always goes through textContent ────
+function mk(tag, attrs, kids){
+  const e = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(k => {
+    const v = attrs[k];
+    if (v === undefined || v === null || v === false) return;
+    if (k === 'text') e.textContent = v;
+    else if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else if (k.slice(0, 2) === 'on') e[k] = v;
+    else e.setAttribute(k, v === true ? '' : v);
+  });
+  (kids || []).forEach(c => {
+    if (c === null || c === undefined) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+// ── the two threads (desktop agent window, mobile agent card) ─
+const SURF = {
+  desk: { key: 'desk', body: 'agent-body',     typing: 'agent-typing',     mobile: false },
+  mob:  { key: 'mob',  body: 'mob-agent-body', typing: 'mob-agent-typing', mobile: true  }
+};
+const busy = { desk: false, mob: false };
+
+const AVATAR_CSS = 'width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0';
+const USER_BUBBLE_CSS = 'background:#F1EFE8;border-radius:12px 12px 2px 12px;padding:8px 12px;font-size:12px;color:#1a1a18;max-width:80%;overflow-wrap:anywhere';
+const TONES = {
+  card:  'background:#fff;border:1px solid #D3D1C7;color:#1a1a18;',
+  plain: 'background:#F5F4F0;color:#1a1a18;',
+  ok:    'background:#E1F5EE;border:1px solid #5DCAA5;color:#085041;',
+  info:  'background:#E6F1FB;border:1px solid #85B7EB;color:#0C447C;',
+  warn:  'background:#FAEEDA;border:1px solid #EF9F27;color:#633806;',
+  err:   'background:#FCEBEB;border:1px solid #F09595;color:#A32D2D;'
+};
+// Class names the Layout spec / FS-76 name for each kind of message.
+const TONE_CLASS = {
+  card: 'agent-result-card', ok: 'agent-confirmation', info: 'agent-info',
+  warn: 'agent-warning', err: 'agent-error', plain: null
 };
 
-function detectIntent(text) {
-  const t = text.toLowerCase();
-  if (t.includes('match') || t.includes('ladbroke') || t.includes('abbotsbury') || t.includes('portland')) return 'match';
-  if (t.includes('register') || t.includes('applicant') || t.includes('sign up')) return 'register';
-  if (t.includes('valuation') || t.includes('brief') || t.includes('comparable') || t.includes('price')) return 'valuation';
-  if (t.includes('kyc') || t.includes('patterson') || t.includes('compliance') || t.includes('aml')) return 'kyc';
-  if (t.includes('outreach') || t.includes('resident') || t.includes('database') || t.includes('letter') || t.includes('handwritten')) return 'outreach';
-  if (t.includes('social') || t.includes('instagram') || t.includes('linkedin') || t.includes('post') || t.includes('wisteria') || t.includes('caption')) return 'social';
-  return 'default';
-}
-
-function appendUserMsg(text) {
-  const body = document.getElementById('agent-body');
-  const el = document.createElement('div');
-  el.style.cssText = 'display:flex;justify-content:flex-end';
-  el.innerHTML = `<div style="background:#F1EFE8;border-radius:12px 12px 2px 12px;padding:8px 12px;font-size:12px;color:#1a1a18;max-width:80%">${text}</div>`;
-  body.appendChild(el);
+function toThread(surf, node){
+  const body = document.getElementById(surf.body);
+  body.appendChild(node);
   body.scrollTop = body.scrollHeight;
+  return node;
 }
 
-function appendTyping() {
-  const body = document.getElementById('agent-body');
-  const el = document.createElement('div');
-  el.id = 'agent-typing';
-  el.style.cssText = 'display:flex;align-items:flex-start;gap:8px';
-  el.innerHTML = `<div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-    <div style="background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#888780">Running flow<span id="dots">.</span></div>`;
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
-  let d = 0;
-  return setInterval(() => { const dots = document.getElementById('dots'); if(dots) dots.textContent = ['.','..',`...`][d++ % 3]; }, 400);
+function userMsg(surf, text){
+  if (surf.mobile) {
+    return toThread(surf, mk('div', { style: 'display:flex;align-items:flex-start;gap:8px;justify-content:flex-end' },
+      [mk('div', { class: 'mob-msg-u', style: 'overflow-wrap:anywhere', text })]));
+  }
+  return toThread(surf, mk('div', { style: 'display:flex;justify-content:flex-end' },
+    [mk('div', { style: USER_BUBBLE_CSS, text })]));
 }
 
-function appendAgentMsg(intent) {
-  const body = document.getElementById('agent-body');
-  const typing = document.getElementById('agent-typing');
-  if (typing) typing.remove();
-  const r = AGENT_RESPONSES[intent] || AGENT_RESPONSES.default;
-  const el = document.createElement('div');
-  el.style.cssText = 'display:flex;align-items:flex-start;gap:8px';
-  el.innerHTML = `<div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-    <div style="max-width:92%">
-      <div style="font-size:9px;color:#B4B2A9;margin-bottom:3px;padding-left:2px">${r.fn}</div>
-      <div style="background:#fff;border:1px solid #D3D1C7;border-radius:2px 10px 10px 10px;padding:10px 12px">${r.html}</div>
-    </div>`;
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
+// One agent message. label = small caption above the bubble (desktop only),
+// kids = DOM nodes, tone = key of TONES, wide = stretch to the thread width.
+function agentMsg(surf, label, kids, tone, wide){
+  tone = tone || 'card';
+  const bubble = mk('div', {
+    class: [surf.mobile ? 'mob-msg-card' : null, TONE_CLASS[tone]].filter(Boolean).join(' ') || null,
+    style: TONES[tone] + 'border-radius:2px 10px 10px 10px;padding:10px 12px;font-size:12px;line-height:1.55;overflow-wrap:anywhere;min-width:0'
+  }, kids);
+  const inner = [];
+  if (label && !surf.mobile) {
+    inner.push(mk('div', { class: 'agent-fn-label', style: 'font-size:9px;color:#B4B2A9;margin-bottom:3px;padding-left:2px', text: label }));
+  }
+  inner.push(bubble);
+  const wrap = mk('div', { style: 'min-width:0;max-width:' + (surf.mobile ? '88%' : '92%') + (wide ? ';width:100%' : '') }, inner);
+  return toThread(surf, mk('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
+    [mk('div', { style: AVATAR_CSS, text: 'AI' }), wrap]));
 }
 
-function sendAgent() {
-  const input = document.getElementById('agent-input');
+function note(surf, text, tone){
+  return agentMsg(surf, null, [mk('div', { text })], tone || 'plain');
+}
+
+// Error card (TS 6.3): what went wrong, the reason, and what to do next.
+function errorMsg(surf, headline, reason, next){
+  const kids = [mk('div', { style: 'font-weight:500', text: headline })];
+  if (reason) kids.push(mk('div', { style: 'margin-top:3px', text: reason }));
+  kids.push(mk('div', { style: 'margin-top:5px;font-size:11px', text: next }));
+  return agentMsg(surf, null, kids, 'err');
+}
+
+function showTyping(surf){
+  hideTyping(surf);
+  toThread(surf, mk('div', { id: surf.typing, role: 'status', style: 'display:flex;align-items:flex-start;gap:8px' }, [
+    mk('div', { style: AVATAR_CSS, text: 'AI' }),
+    mk('div', { style: 'background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#888780', text: 'Running flow…' })
+  ]));
+}
+function hideTyping(surf){
+  const t = document.getElementById(surf.typing);
+  if (t) t.remove();
+}
+
+// ── command -> /classify -> flow ──────────────────────────────
+const INTENT_LABELS = {
+  WELCOME_CLIENT: 'Generate welcome',
+  REGISTER_APPLICANT: 'Register applicant',
+  MATCH_APPLICANTS: 'Match applicants',
+  VALUATION_BRIEF: 'Valuation brief',
+  KYC_STATUS: 'KYC status',
+  DRAFT_OUTREACH: 'Draft outreach'
+};
+function intentLabel(intent){
+  if (INTENT_LABELS[intent]) return INTENT_LABELS[intent];
+  const s = String(intent || '').toLowerCase().replace(/_/g, ' ').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'That flow';
+}
+
+async function sendCommand(surf, text){
+  text = (text || '').trim();
+  if (!text || busy[surf.key]) return;
+  busy[surf.key] = true;
+  try {
+    userMsg(surf, text);
+    showTyping(surf);
+    const r = await postJSON('/classify', { text });
+    hideTyping(surf);
+    if (r.status === 401) return;                      // signing out
+    if (!r.ok) {
+      errorMsg(surf, 'Something went wrong. Nothing was run.', reasonFrom(r.data), 'Try again in a moment. If it keeps happening, tell your administrator.');
+      return;
+    }
+    if (r.data.status !== 'ok') { renderUnknown(surf, r.data); return; }
+    notConnected(surf, intentLabel(r.data.intent));
+  } finally {
+    hideTyping(surf);
+    busy[surf.key] = false;
+  }
+}
+
+function renderUnknown(surf, data){
+  const list = mk('ul', { style: 'margin:6px 0 0 16px;padding:0;color:#5F5E5A' });
+  (Array.isArray(data.capabilities) ? data.capabilities : []).forEach(c => list.appendChild(mk('li', { text: String(c) })));
+  agentMsg(surf, 'Not recognised', [
+    mk('div', { style: 'font-weight:500', text: data.message || "I can't help with that." }),
+    list
+  ], 'card');
+}
+
+function notConnected(surf, label){
+  agentMsg(surf, 'Not connected yet', [
+    mk('div', { style: 'font-weight:500', text: label + " isn't connected yet" }),
+    mk('div', { style: 'margin-top:4px;color:#5F5E5A', text: 'Nothing was run and nothing was sent. For now this workspace can generate a welcome message and register an applicant.' })
+  ], 'card');
+}
+
+// ── entry points used by the page ─────────────────────────────
+function sendFrom(surf, inputId){
+  const input = document.getElementById(inputId);
   const text = input.value.trim();
-  if (!text) return;
-  appendUserMsg(text);
+  if (!text || busy[surf.key]) return;
   input.value = '';
-  const intent = detectIntent(text);
-  const timer = appendTyping();
-  setTimeout(() => { clearInterval(timer); appendAgentMsg(intent); }, 900 + Math.random() * 600);
+  sendCommand(surf, text);
+}
+function sendAgent(){ sendFrom(SURF.desk, 'agent-input'); }
+function runChip(text){ sendCommand(SURF.desk, text); }
+
+// Action Flows > Run flow: no flow is connected yet, so every one says so.
+function runSelectedFlow(){
+  showPage('cc');
+  const nameEl = document.querySelector('#fc-' + currentFlow + ' .fn');
+  notConnected(SURF.desk, nameEl ? nameEl.textContent : 'That flow');
 }
 
-function runChip(text) {
-  appendUserMsg(text);
-  const intent = detectIntent(text);
-  const timer = appendTyping();
-  setTimeout(() => { clearInterval(timer); appendAgentMsg(intent); }, 900 + Math.random() * 600);
-}
-
-function agentAction(action) {
+function clearAgent() {
   const body = document.getElementById('agent-body');
-  const msgs = {
-    'draft-intros': '✓ Introduction drafts ready for Sarah Chen and James Hyde — open Messenger to review and approve.',
-    'hubspot': '✓ Match logged to HubSpot — 14 Ladbroke Road activity note added to all 3 contact records.',
-    'set-task': '✓ Task set — Viewing: Sarah Chen · 14 Ladbroke Road · Thu 24 Apr · assigned to Marta · HubSpot task created.',
-    'save-kb': '✓ Saved to Knowledge Base as playbook — available to Claude Sonnet, Opus, Haiku, and GPT-4o automatically.',
-    'send-welcome': '✓ Welcome email sent via Gmail — HubSpot Lifecycle Stage updated to Welcome Sent.',
-    'first-match': '✓ Running first match for James Hyde — results in a moment.',
-    'kyc-chase': '✓ KYC follow-up task set — Marta notified · due today.',
-    'whatsapp-chase': '✓ WhatsApp draft ready for Mrs Patterson in Messenger — KYC day 6 escalation tone.',
-    'escalate': '✓ Escalated — Curtis notified. Pipeline stage held. KYC log updated.',
-    'send-brief': '✓ Valuation brief sent to client — Google Drive copy archived.',
-    'approve-send': '✓ Approved and sent — HubSpot activity logged. Next follow-up task set for 7 days.',
-    'approve-post': '✓ CS-04 approved — Make.com webhook fired. Instagram and LinkedIn scheduled for 14 Apr 09:00.',
-    'regenerate': '↺ Regenerating — new draft in a moment.',
-    'kyc-chase': '✓ KYC task created — Marta assigned · due today.'
-  };
-  const text = msgs[action] || '✓ Done.';
-  const el = document.createElement('div');
-  el.style.cssText = 'display:flex;align-items:flex-start;gap:8px';
-  el.innerHTML = `<div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-    <div style="background:#E1F5EE;border:1px solid #5DCAA5;border-radius:2px 10px 10px 10px;padding:8px 12px;font-size:11px;color:#085041;max-width:90%">${text}</div>`;
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
+  while (body.firstChild) body.removeChild(body.firstChild);
+  toThread(SURF.desk, mk('div', { style: 'display:flex;align-items:flex-start;gap:8px' }, [
+    mk('div', { style: AVATAR_CSS, text: 'AI' }),
+    mk('div', { style: 'background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#1a1a18;line-height:1.55;max-width:90%', text: 'Ready. Type a command or use the chips above to run a flow.' })
+  ]));
 }
 
 
@@ -322,48 +372,8 @@ function showMobPage(id) {
   document.getElementById('mnav-' + id).classList.add('active');
 }
 
-function mobAppendMsg(who, html) {
-  const body = document.getElementById('mob-agent-body');
-  const el = document.createElement('div');
-  el.style.cssText = 'display:flex;align-items:flex-start;gap:8px' + (who === 'user' ? ';justify-content:flex-end' : '');
-  if (who === 'user') {
-    el.innerHTML = `<div class="mob-msg-u">${html}</div>`;
-  } else {
-    el.innerHTML = `<div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div><div class="mob-msg-card" style="max-width:88%">${html}</div>`;
-  }
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
-}
-
-function mobRunChip(text) {
-  mobAppendMsg('user', text);
-  const intent = detectIntent(text);
-  setTimeout(() => {
-    const r = AGENT_RESPONSES[intent] || AGENT_RESPONSES.default;
-    mobAppendMsg('ai', r.html);
-  }, 800 + Math.random() * 400);
-}
-
-function mobSendAgent() {
-  const input = document.getElementById('mob-agent-input');
-  const text = input.value.trim();
-  if (!text) return;
-  mobAppendMsg('user', text);
-  input.value = '';
-  const intent = detectIntent(text);
-  setTimeout(() => {
-    const r = AGENT_RESPONSES[intent] || AGENT_RESPONSES.default;
-    mobAppendMsg('ai', r.html);
-  }, 800 + Math.random() * 400);
-}
-
-function clearAgent() {
-  const body = document.getElementById('agent-body');
-  body.innerHTML = `<div style="display:flex;align-items:flex-start;gap:8px">
-    <div style="width:22px;height:22px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#E1F5EE;flex-shrink:0">AI</div>
-    <div style="background:#F5F4F0;border-radius:2px 10px 10px 10px;padding:9px 12px;font-size:12px;color:#1a1a18;line-height:1.55;max-width:90%">Ready. Type a command or use the chips above to run a flow.</div>
-  </div>`;
-}
+function mobRunChip(text) { sendCommand(SURF.mob, text); }
+function mobSendAgent() { sendFrom(SURF.mob, 'mob-agent-input'); }
 
 
 // ── MODEL SWITCHER ────────────────────────────────────────────
