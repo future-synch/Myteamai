@@ -11,10 +11,18 @@ import pytest
 
 from tests.e2e.live_server import LiveServer, start_live_server
 from tests.e2e.network_guard import NetworkGuard
+from tests.e2e.outbound_tripwire import OutboundTripwire
 
 
 @pytest.fixture(scope="session")
-def live_server() -> LiveServer:
+def outbound_tripwire() -> OutboundTripwire:
+    """Refuses (and records) httpx requests from this process to non-loopback hosts."""
+    with OutboundTripwire().installed() as tripwire:
+        yield tripwire
+
+
+@pytest.fixture(scope="session")
+def live_server(outbound_tripwire: OutboundTripwire) -> LiveServer:
     """The real app on a free localhost port, healthy before it is yielded."""
     with start_live_server() as server:
         yield server
@@ -63,6 +71,20 @@ def _browser_stayed_on_localhost(network_guard: NetworkGuard):
         pytest.fail(
             "e2e tests must stay on the local test server "
             f"({network_guard.allowed_origin}), but the browser requested:\n  "
+            f"{attempted}",
+            pytrace=False,
+        )
+
+
+@pytest.fixture(autouse=True)
+def _server_made_no_outbound_calls(outbound_tripwire: OutboundTripwire):
+    """Fail the test if the app server tried to call out (HubSpot, Anthropic, ...)."""
+    outbound_tripwire.blocked.clear()
+    yield
+    if outbound_tripwire.blocked:
+        attempted = "\n  ".join(outbound_tripwire.blocked)
+        pytest.fail(
+            "the e2e app server must not call out to anything but localhost, but it tried:\n  "
             f"{attempted}",
             pytrace=False,
         )
