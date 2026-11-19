@@ -182,3 +182,7 @@ if os.path.isdir("frontend"):
     @app.get("/chat")
     def chat():
         return FileResponse("frontend/chat.html")
+
+    @app.get("/workspace")
+    def workspace():
+        return FileResponse("frontend/workspace.html")
