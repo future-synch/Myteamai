@@ -10,6 +10,12 @@ from __future__ import annotations
 import pytest
 
 from tests.e2e.live_server import LiveServer, start_live_server
+from tests.e2e.login_helpers import (
+    Credentials,
+    load_agent_credentials,
+    seed_session,
+    sign_in_through_login_page,
+)
 from tests.e2e.network_guard import NetworkGuard
 from tests.e2e.outbound_tripwire import OutboundTripwire
 
@@ -88,3 +94,33 @@ def _server_made_no_outbound_calls(outbound_tripwire: OutboundTripwire):
             f"{attempted}",
             pytrace=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# Login helpers (see login_helpers.py)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def agent_credentials() -> Credentials:
+    """The MVP agent account; E2E_AGENT_EMAIL / E2E_AGENT_PASSWORD override it."""
+    return load_agent_credentials()
+
+
+@pytest.fixture
+def ui_login(page, agent_credentials: Credentials):
+    """Callable: sign in through the real login page (for tests about login)."""
+    def _ui_login(credentials: Credentials | None = None, *, wait_for_chat: bool = True) -> None:
+        sign_in_through_login_page(
+            page, credentials or agent_credentials, wait_for_chat=wait_for_chat
+        )
+
+    return _ui_login
+
+
+@pytest.fixture
+def token_login(page, agent_credentials: Credentials):
+    """Callable: POST /auth/login and seed localStorage (fast, for everything else)."""
+    def _token_login(credentials: Credentials | None = None) -> str:
+        return seed_session(page, credentials or agent_credentials)
+
+    return _token_login
