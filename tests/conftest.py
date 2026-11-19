@@ -44,6 +44,13 @@ def pytest_bdd_apply_tag(tag: str, function):
         marker = pytest.mark.integration
         marker(function)
         return True
+    # FS-75: @e2e feature files are browser tests, excluded from the default run
+    # by `not e2e` in pytest.ini. Mapped explicitly so the marker does not depend
+    # on pytest-bdd's default tag handling.
+    if tag == "e2e":
+        marker = pytest.mark.e2e
+        marker(function)
+        return True
     return None
 
 
