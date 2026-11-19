@@ -34,5 +34,8 @@ build/
 # Logs
 *.log
 
+# Playwright traces and failure screenshots (FS-75)
+test-results/
+
 # OS
 Thumbs.db
