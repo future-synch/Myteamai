@@ -146,11 +146,12 @@ function signOut(){
 }
 
 // ── AGENT COMMAND WINDOW (FS-76) ──────────────────────────────
-// Every command goes to POST /classify first. WELCOME_CLIENT goes to
-// POST /bot/welcome-from-text; the welcome form (Action Flows > Run flow)
-// posts to /bot/welcome. Every other known intent says plainly that it is not
-// connected yet and runs nothing. Nothing here ever sends an email: dispatch
-// is always false.
+// Every command goes to POST /classify first. Two intents are wired to a flow:
+//   WELCOME_CLIENT     -> POST /bot/welcome-from-text
+//   REGISTER_APPLICANT -> the register form -> POST /bot/register-applicant
+// The welcome form (opened from Action Flows > Run flow) posts to /bot/welcome.
+// Every other known intent says plainly that it is not connected yet and runs
+// nothing. Nothing here ever sends an email: dispatch is always false.
 //
 // Rule for this file: text that came from the user or from the server is put
 // in with textContent / createTextNode, never innerHTML. welcome_draft.html_body
@@ -317,6 +318,7 @@ async function sendCommand(surf, text){
     }
     if (r.data.status !== 'ok') { renderUnknown(surf, r.data); return; }
     if (r.data.intent === 'WELCOME_CLIENT') { await runWelcomeFromText(surf, text); return; }
+    if (r.data.intent === 'REGISTER_APPLICANT') { openRegisterForm(surf); return; }
     notConnected(surf, intentLabel(r.data.intent));
   } finally {
     hideTyping(surf);
@@ -456,6 +458,154 @@ function openWelcomeForm(surf){
   name.control.focus();
 }
 
+function openRegisterForm(surf){
+  const fid = 'rf' + (++formSeq);
+  const fullName = formField(fid, 'full_name', 'Full name *', textInput('text', 'e.g. Tom Baker'), true);
+  const email    = formField(fid, 'email', 'Email *', textInput('email', 'tom@example.com'), true);
+  const phone    = formField(fid, 'phone', 'Phone *', textInput('text', '+44 7700 900123'), true);
+  const budget   = formField(fid, 'budget', 'Budget (£) *', textInput('number', 'e.g. 2500000'), true);
+  const bedMin   = formField(fid, 'bedrooms_min', 'Bedrooms min *', textInput('number', 'e.g. 3', '2'), true);
+  const bedMax   = formField(fid, 'bedrooms_max', 'Bedrooms max', textInput('number', 'Optional'), false);
+  const financing = formField(fid, 'financing', 'Financing *', selectOf([
+    ['cash', 'Cash'], ['mortgage_aip', 'Mortgage (AIP)'], ['mortgage_no_aip', 'Mortgage (no AIP)'], ['unknown', 'Unknown']]), true);
+  const channel  = formField(fid, 'preferred_channel', 'Preferred channel *', selectOf([
+    ['email', 'Email'], ['phone', 'Phone'], ['whatsapp', 'WhatsApp']]), true);
+  const source   = formField(fid, 'source', 'Source *', textInput('text', 'Rightmove, Referral, etc.'), true);
+  const timeline = formField(fid, 'timeline_weeks', 'Timeline (weeks)', textInput('number', 'Optional'), false);
+  const mustHave = formField(fid, 'must_have', 'Must-have', mk('textarea', { rows: '2', placeholder: 'Optional — e.g. garden, parking, near tube' }), false);
+
+  // property types: a group of checkboxes with its own error line
+  const typeBoxes = [['house', 'House'], ['flat', 'Flat'], ['maisonette', 'Maisonette'], ['any', 'Any']].map(t =>
+    mk('label', null, [mk('input', { type: 'checkbox', value: t[0], 'data-field': 'property_types' }), ' ' + t[1]]));
+  const typesBox = mk('div', { class: 'wf-types', id: fid + '-property_types', role: 'group', 'aria-label': 'Property types' }, typeBoxes);
+  const typesErr = mk('div', { class: 'wf-err', id: 'err-' + fid + '-property_types', 'data-err': 'property_types' });
+  typesBox.addEventListener('change', () => { typesErr.textContent = ''; });
+  const typesNode = mk('div', { class: 'wf-group' }, [
+    mk('div', { class: 'wf-label', text: 'Property types * (select one or more)' }), typesBox, typesErr]);
+
+  const submit = mk('button', { type: 'submit', class: 'wf-submit', text: 'Register applicant' });
+  let formRow = null;
+  const form = mk('form', { class: 'wf', 'data-form': 'register', novalidate: true }, [
+    mk('div', { class: 'wf-title', text: 'Register applicant' }),
+    fullName.node, email.node, phone.node,
+    mk('div', { class: 'wf-row' }, [budget.node, bedMin.node]),
+    mk('div', { class: 'wf-row' }, [bedMax.node, timeline.node]),
+    mk('div', { class: 'wf-row' }, [financing.node, channel.node]),
+    source.node, typesNode, mustHave.node,
+    mk('div', { class: 'wf-note', text: 'Creates the applicant and suggests matches. No email is created or sent.' }),
+    submit
+  ]);
+
+  const all = [fullName, email, phone, budget, bedMin, bedMax, financing, channel, source, timeline, mustHave];
+
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    if (submit.disabled) return;
+    all.forEach(f => setErr(f.control, f.err, ''));
+    typesErr.textContent = '';
+    const v = f => f.control.value.trim();
+    const full_name = v(fullName), emailV = v(email), phoneV = v(phone);
+    const budgetV = parseInt(budget.control.value, 10), bedMinV = parseInt(bedMin.control.value, 10);
+    const bedMaxRaw = bedMax.control.value, timelineRaw = timeline.control.value;
+    const financingV = financing.control.value, channelV = channel.control.value;
+    const sourceV = v(source), mustV = v(mustHave);
+    const property_types = Array.from(typesBox.querySelectorAll('input:checked')).map(x => x.value);
+
+    let valid = true;
+    const bad = (f, msg) => { setErr(f.control, f.err, msg); valid = false; };
+    if (!full_name) bad(fullName, 'Full name is required');
+    if (!emailV) bad(email, 'Email is required');
+    else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailV)) bad(email, 'Invalid email');
+    if (!phoneV) bad(phone, 'Phone is required');
+    if (!budgetV) bad(budget, 'Budget is required');
+    if (!bedMinV) bad(bedMin, 'Bedrooms min is required');
+    if (!financingV) bad(financing, 'Financing is required');
+    if (!channelV) bad(channel, 'Channel is required');
+    if (!sourceV) bad(source, 'Source is required');
+    if (property_types.length === 0) { typesErr.textContent = 'Pick at least one'; valid = false; }
+    if (!valid) return;
+
+    const body = {
+      full_name, email: emailV, phone: phoneV, budget: budgetV, bedrooms_min: bedMinV,
+      property_types, financing: financingV, preferred_channel: channelV, source: sourceV,
+      dispatch: false
+    };
+    if (bedMaxRaw) body.bedrooms_max = parseInt(bedMaxRaw, 10);
+    if (timelineRaw) body.timeline_weeks = parseInt(timelineRaw, 10);
+    if (mustV) body.must_have = mustV;
+
+    submit.disabled = true;
+    try {
+      userMsg(surf, 'Register applicant ' + full_name + ' (' + emailV + ')');
+      showTyping(surf);
+      const r = await postJSON('/bot/register-applicant', body);
+      hideTyping(surf);
+      if (r.status === 401) return;
+      if (renderRegisterResult(surf, r)) formRow.remove();   // success: the form collapses into the result
+    } finally {
+      hideTyping(surf);
+      submit.disabled = false;
+    }
+  });
+
+  formRow = agentMsg(surf, 'Register applicant', [form], 'card', true);
+  fullName.control.focus();
+}
+
+// Subject and plain-text body only, as text. The HTML body is never rendered.
+function welcomePreview(draft){
+  if (!draft || (!draft.subject && !draft.text_body)) return null;
+  const details = mk('details', { style: 'margin-top:8px' }, [
+    mk('summary', { style: 'cursor:pointer;font-size:11px;font-weight:500', text: 'Welcome email preview (not sent)' })
+  ]);
+  if (draft.subject) {
+    details.appendChild(mk('div', { style: 'margin:6px 0' }, [mk('strong', { text: 'Subject: ' }), String(draft.subject)]));
+  }
+  if (draft.text_body) details.appendChild(mk('div', { style: 'white-space:pre-wrap', text: String(draft.text_body) }));
+  return details;
+}
+
+// Returns true when the applicant was registered or already existed (the form
+// can collapse), false when the request failed (the form stays for another go).
+function renderRegisterResult(surf, r){
+  const data = r.data || {};
+  if (!(r.ok && data.status === 'ok' && data.applicant_id)) {
+    errorMsg(surf, 'Failed to create contact', reasonFrom(data), 'Check the details above and try again.');
+    return false;
+  }
+  // first_matches: the count only, as the current chat page does.
+  const n = Array.isArray(data.first_matches) ? data.first_matches.length : 0;
+  const matchNote = n ? ' — ' + n + ' suggested ' + (n === 1 ? 'match' : 'matches') : '';
+  if (data.created) {
+    agentMsg(surf, 'Register applicant', [
+      mk('div', null, ['✓ New applicant registered in HubSpot — ID ', mk('strong', { text: String(data.applicant_id) }), matchNote])
+    ], 'ok');
+    const preview = welcomePreview(data.welcome_draft);
+    if (preview) agentMsg(surf, 'Welcome draft', [preview], 'card', true);
+  } else {
+    // Existing applicant: NOT overwritten. Show what we hold against what was just typed.
+    const diff = (data.diff && typeof data.diff === 'object') ? data.diff : {};
+    const kids = [mk('div', null, ['ℹ️ This applicant already exists in HubSpot — ID ', mk('strong', { text: String(data.applicant_id) }), matchNote + '. Their existing record was left unchanged.'])];
+    const fields = Object.keys(diff);
+    if (fields.length) {
+      kids.push(mk('div', { style: 'margin-top:6px', text: 'Differences (not applied — existing record is preserved):' }));
+      fields.forEach(field => {
+        const d = diff[field] || {};
+        const submitted = Array.isArray(d.submitted) ? d.submitted.join('; ') : (d.submitted === null || d.submitted === undefined ? '' : String(d.submitted));
+        const existing = Array.isArray(d.existing) ? d.existing.join('; ') : (d.existing === null || d.existing === undefined ? '—' : String(d.existing));
+        kids.push(mk('div', { 'data-diff-field': field }, ['• ', mk('strong', { text: field }), ': we hold “' + existing + '”, you entered “' + submitted + '”']));
+      });
+    } else {
+      kids.push(mk('div', { style: 'margin-top:6px', text: 'Nothing differs from what we already hold.' }));
+    }
+    agentMsg(surf, 'Register applicant', kids, 'info');
+  }
+  if (Array.isArray(data.errors) && data.errors.length) {
+    note(surf, 'Registered, with warnings: ' + data.errors.join(', '), 'warn');
+  }
+  return true;
+}
+
 // ── entry points used by the page ─────────────────────────────
 function sendFrom(surf, inputId){
   const input = document.getElementById(inputId);
@@ -467,11 +617,12 @@ function sendFrom(surf, inputId){
 function sendAgent(){ sendFrom(SURF.desk, 'agent-input'); }
 function runChip(text){ sendCommand(SURF.desk, text); }
 
-// Action Flows > Run flow: the welcome flow opens its form in the Command
+// Action Flows > Run flow: the two wired flows open their form in the Command
 // Centre thread; every other flow says it is not connected yet.
 function runSelectedFlow(){
   showPage('cc');
   if (currentFlow === 'welcome') { openWelcomeForm(SURF.desk); return; }
+  if (currentFlow === 'applicant') { openRegisterForm(SURF.desk); return; }
   const nameEl = document.querySelector('#fc-' + currentFlow + ' .fn');
   notConnected(SURF.desk, nameEl ? nameEl.textContent : 'That flow');
 }
