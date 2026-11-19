@@ -146,9 +146,11 @@ function signOut(){
 }
 
 // ── AGENT COMMAND WINDOW (FS-76) ──────────────────────────────
-// Every command goes to POST /classify first. At this stage every known intent
-// says plainly that it is not connected yet and runs nothing; the welcome and
-// register flows are wired next.
+// Every command goes to POST /classify first. WELCOME_CLIENT goes to
+// POST /bot/welcome-from-text; the welcome form (Action Flows > Run flow)
+// posts to /bot/welcome. Every other known intent says plainly that it is not
+// connected yet and runs nothing. Nothing here ever sends an email: dispatch
+// is always false.
 //
 // Rule for this file: text that came from the user or from the server is put
 // in with textContent / createTextNode, never innerHTML. welcome_draft.html_body
@@ -314,6 +316,7 @@ async function sendCommand(surf, text){
       return;
     }
     if (r.data.status !== 'ok') { renderUnknown(surf, r.data); return; }
+    if (r.data.intent === 'WELCOME_CLIENT') { await runWelcomeFromText(surf, text); return; }
     notConnected(surf, intentLabel(r.data.intent));
   } finally {
     hideTyping(surf);
@@ -337,6 +340,122 @@ function notConnected(surf, label){
   ], 'card');
 }
 
+function draftBlock(text){
+  return mk('div', { style: 'white-space:pre-wrap;margin-top:8px', text });
+}
+
+async function runWelcomeFromText(surf, text){
+  showTyping(surf);
+  const r = await postJSON('/bot/welcome-from-text', { text });
+  hideTyping(surf);
+  if (r.status === 401) return;
+  const d = r.data || {};
+  if (r.ok && d.status === 'ok' && d.message_draft) {
+    const kids = [];
+    if (d.extracted) {
+      const x = d.extracted;
+      let line = ' Client = ' + (x.client_name || '—') + ' · Source = ' + (x.source || '—');
+      if (x.budget_gbp) line += ' · Budget = £' + Number(x.budget_gbp).toLocaleString('en-GB');
+      if (x.timeline) line += ' · Timeline = ' + x.timeline;
+      kids.push(mk('div', { style: 'font-size:10px;color:#5F5E5A' }, [mk('strong', { text: 'Extracted:' }), line]));
+    }
+    kids.push(draftBlock(d.message_draft));
+    agentMsg(surf, 'Generate welcome · draft only, nothing sent', kids, 'card');
+  } else {
+    errorMsg(surf, 'Draft generation failed', d.message_draft || reasonFrom(d), 'Check the message and try again.');
+  }
+}
+
+// ── form cards (built with DOM APIs, one per open) ────────────
+let formSeq = 0;
+
+function setErr(control, errEl, msg){
+  errEl.textContent = msg;
+  control.classList.toggle('wf-invalid', !!msg);
+  control.setAttribute('aria-invalid', msg ? 'true' : 'false');
+}
+
+// Wraps a control with its label and an error line. required => "Required" on blur.
+function formField(fid, key, labelText, control, required, errTarget){
+  const id = fid + '-' + key;
+  control.id = id;
+  control.setAttribute('data-field', key);
+  const err = mk('div', { class: 'wf-err', id: 'err-' + id, 'data-err': key });
+  control.addEventListener('input', () => setErr(control, err, ''));
+  control.addEventListener('change', () => setErr(control, err, ''));
+  if (required) {
+    control.addEventListener('blur', () => { if (!control.value.trim()) setErr(control, err, 'Required'); });
+  }
+  const label = mk('label', { class: 'wf-label', for: id, text: labelText });
+  return { node: mk('div', { class: 'wf-group' }, [label, control, err]), control, err };
+}
+
+function textInput(type, placeholder, value){
+  return mk('input', { type, placeholder, value, autocomplete: 'off' });
+}
+function selectOf(options){
+  return mk('select', null, [mk('option', { value: '', text: 'Select…' })].concat(
+    options.map(o => mk('option', { value: o[0], text: o[1] }))));
+}
+
+function openWelcomeForm(surf){
+  const fid = 'wf' + (++formSeq);
+  const name   = formField(fid, 'client_name', 'Client name *', textInput('text', 'e.g. James Hyde'), true);
+  const source = formField(fid, 'source', 'Source *', selectOf(['Rightmove', 'Zoopla', 'Referral', 'Direct', 'Other'].map(s => [s, s])), true);
+  const agent  = formField(fid, 'agent_name', 'Agent name *', textInput('text', 'Your name'), true);
+  const budget = formField(fid, 'budget_gbp', 'Budget (£)', textInput('number', 'Optional — e.g. 2000000'), false);
+  const submit = mk('button', { type: 'submit', class: 'wf-submit', text: 'Generate welcome' });
+
+  let formRow = null;
+  const form = mk('form', { class: 'wf', 'data-form': 'welcome', novalidate: true }, [
+    mk('div', { class: 'wf-title', text: 'Generate welcome' }),
+    name.node, source.node, agent.node, budget.node,
+    mk('div', { class: 'wf-note', text: 'Draft only. Nothing is sent.' }),
+    submit
+  ]);
+
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    if (submit.disabled) return;
+    [name, source, agent, budget].forEach(f => setErr(f.control, f.err, ''));
+    const nm = name.control.value.trim();
+    const src = source.control.value;
+    const ag = agent.control.value.trim();
+    const bud = budget.control.value;
+    let valid = true;
+    if (!nm) { setErr(name.control, name.err, 'Client name is required'); valid = false; }
+    else if (nm.length < 2) { setErr(name.control, name.err, 'Client name must be at least 2 characters'); valid = false; }
+    if (!src) { setErr(source.control, source.err, 'Source is required'); valid = false; }
+    if (!ag) { setErr(agent.control, agent.err, 'Agent name is required'); valid = false; }
+    if (bud && parseInt(bud, 10) < 100000) { setErr(budget.control, budget.err, 'Budget must be at least £100,000'); valid = false; }
+    if (!valid) return;
+
+    const body = { client_name: nm, source: src, agent_name: ag, dispatch: false };
+    if (bud) body.budget_gbp = parseInt(bud, 10);
+
+    submit.disabled = true;
+    try {
+      userMsg(surf, 'Generate welcome for ' + nm + ' (' + src + ')');
+      showTyping(surf);
+      const r = await postJSON('/bot/welcome', body);
+      hideTyping(surf);
+      if (r.status === 401) return;
+      if (r.ok && r.data.message_draft) {
+        formRow.remove();                       // the form collapses into the result
+        agentMsg(surf, 'Generate welcome · draft only, nothing sent', [draftBlock(r.data.message_draft)], 'card');
+      } else {
+        errorMsg(surf, 'Could not generate the welcome', reasonFrom(r.data), 'Check the details above and try again.');
+      }
+    } finally {
+      hideTyping(surf);
+      submit.disabled = false;
+    }
+  });
+
+  formRow = agentMsg(surf, 'Generate welcome', [form], 'card', true);
+  name.control.focus();
+}
+
 // ── entry points used by the page ─────────────────────────────
 function sendFrom(surf, inputId){
   const input = document.getElementById(inputId);
@@ -348,9 +467,11 @@ function sendFrom(surf, inputId){
 function sendAgent(){ sendFrom(SURF.desk, 'agent-input'); }
 function runChip(text){ sendCommand(SURF.desk, text); }
 
-// Action Flows > Run flow: no flow is connected yet, so every one says so.
+// Action Flows > Run flow: the welcome flow opens its form in the Command
+// Centre thread; every other flow says it is not connected yet.
 function runSelectedFlow(){
   showPage('cc');
+  if (currentFlow === 'welcome') { openWelcomeForm(SURF.desk); return; }
   const nameEl = document.querySelector('#fc-' + currentFlow + ' .fn');
   notConnected(SURF.desk, nameEl ? nameEl.textContent : 'That flow');
 }

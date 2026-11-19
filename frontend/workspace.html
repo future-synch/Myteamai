@@ -277,7 +277,7 @@
       <div style="border-top:1px solid #D3D1C7;flex-shrink:0">
         <div style="padding:6px 12px 0;font-size:9px;color:#B4B2A9;letter-spacing:.3px">Type naturally or choose a flow above</div>
         <div style="display:flex;gap:0">
-          <textarea id="agent-input" rows="2" placeholder="e.g. &quot;register James Hyde, £3.2M budget, 4 bed, AIP held&quot; or &quot;draft welcome for Sarah Chen, referral from Millers&quot;" style="flex:1;font-size:12px;padding:9px 12px;border:none;background:transparent;color:#1a1a18;font-family:inherit;outline:none;resize:none;line-height:1.5" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendAgent()}"></textarea>
+          <textarea id="agent-input" rows="2" placeholder="e.g. &quot;Welcome new client, James Hyde, came through Rightmove&quot; or &quot;register new applicant&quot;" style="flex:1;font-size:12px;padding:9px 12px;border:none;background:transparent;color:#1a1a18;font-family:inherit;outline:none;resize:none;line-height:1.5" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendAgent()}"></textarea>
           <div style="display:flex;flex-direction:column;justify-content:center;padding:8px 10px;gap:5px;border-left:1px solid #F1EFE8">
             <button onclick="sendAgent()" style="padding:6px 14px;background:#1D9E75;border:none;border-radius:7px;color:#E1F5EE;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">Run ↵</button>
             <button onclick="showPage('af')" style="padding:4px 10px;background:transparent;border:1px solid #D3D1C7;border-radius:6px;color:#5F5E5A;font-size:10px;cursor:pointer;font-family:inherit;white-space:nowrap">Browse flows</button>
@@ -553,7 +553,7 @@
         </div>
       </div>
       <div class="mob-agent-input">
-        <textarea id="mob-agent-input" rows="2" placeholder="e.g. match for 14 Ladbroke Road…"></textarea>
+        <textarea id="mob-agent-input" rows="2" placeholder="e.g. Welcome new client, James Hyde, came through Rightmove"></textarea>
         <button class="mob-agent-send" onclick="mobSendAgent()">→</button>
       </div>
     </div>
