@@ -101,6 +101,13 @@ def login(req: LoginRequest):
     return result
 
 
+# Cheap "is this token still valid" check the workspace page probes on boot
+# (FS-76 blocker A): a bad token turns into a 401 before any UI paints.
+@app.get("/auth/verify")
+def verify_token(_: dict = Depends(require_auth)):
+    return {"status": "ok"}
+
+
 # ---------------------------------------------------------------------------
 # Classify (M1 — no external services)
 # ---------------------------------------------------------------------------

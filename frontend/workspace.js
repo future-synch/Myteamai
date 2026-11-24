@@ -136,10 +136,14 @@ selectFlow('welcome');
 selectKB('kb-match-w11');
 
 // ── SESSION ───────────────────────────────────────────────────
-// The workspace needs the token the login page stored. No token: back to login.
+// The workspace needs the token the login page stored. No token: back to login
+// with next=<current path>, so sign-in returns to this page (FS-76 blocker A).
+// The inline bootstrap in workspace.html also gates the page before any paint;
+// this is a defence-in-depth check for when workspace.js executes anyway.
 const TOKEN = localStorage.getItem('token');
-if (!TOKEN) window.location.replace('/');
+if (!TOKEN) window.location.replace('/?next=' + location.pathname);
 
+// Explicit sign out from the account menu: no next param, back to a clean login.
 function signOut(){
   localStorage.clear();
   window.location.href = '/';
@@ -168,8 +172,9 @@ async function postJSON(path, body){
   } catch (e) {
     return { ok: false, status: 0, data: { detail: 'Could not reach the server.' } };
   }
-  if (res.status === 401) {          // expired or missing session: back to the login page
-    signOut();
+  if (res.status === 401) {          // expired or missing session: back to login with next
+    try { localStorage.clear(); } catch (e) {}
+    window.location.replace('/?next=' + window.location.pathname);
     return { ok: false, status: 401, data: { detail: 'Session expired.' } };
   }
   const data = await res.json().catch(() => ({ detail: 'Invalid JSON response' }));

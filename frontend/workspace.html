@@ -1,6 +1,30 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 
+<script>
+// FS-76 blocker A: gate the page before anything else in <head> loads. No token
+// or a token the server rejects (GET /auth/verify) must land on the login page
+// with next=/workspace, so sign-in brings the agent back here. The page stays
+// invisible while we verify, so a bad token never paints the workspace UI.
+(function () {
+  var LOGIN = '/?next=' + location.pathname;
+  var token = null;
+  try { token = localStorage.getItem('token'); } catch (e) {}
+  if (!token) { location.replace(LOGIN); return; }
+  document.documentElement.style.visibility = 'hidden';
+  fetch('/auth/verify', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function (r) {
+      if (r.status === 401) {
+        try { localStorage.clear(); } catch (e) {}
+        location.replace(LOGIN);
+      } else {
+        document.documentElement.style.visibility = '';
+      }
+    })
+    .catch(function () { document.documentElement.style.visibility = ''; });
+})();
+</script>
+
 <title>Curtis Sloane Workspace — My Team AI</title>
 <meta name="description" content="My Team AI workspace for Curtis Sloane Property. AI-powered command centre, action flows, knowledge base, and social management for W11 residential property.">
 <meta name="keywords" content="My Team AI workspace, property AI, estate agency AI, Curtis Sloane, W11 property">

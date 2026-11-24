@@ -142,7 +142,12 @@
           const data = await res.json();
           localStorage.setItem('token', data.access_token);
           localStorage.setItem('role', data.role);
-          window.location.href = '/chat';
+          // FS-76 blocker A: honour ?next=<path> for the pages we actually serve;
+          // anything else (cross-origin, unknown path) falls back to /chat so the
+          // login page cannot be turned into an open redirect.
+          const ALLOWED = new Set(['/workspace', '/chat']);
+          const next = new URLSearchParams(window.location.search).get('next') || '';
+          window.location.href = ALLOWED.has(next) ? next : '/chat';
         } else {
           globalErr.textContent = 'Invalid email or password.';
         }
