@@ -463,6 +463,20 @@ function openWelcomeForm(surf){
   name.control.focus();
 }
 
+// FS-76 John comment 11514: the property types the agent can tick for an
+// applicant. No "Any": every applicant must have at least one concrete type.
+// APARTMENT_LABEL is the single place the "Apartment" label is defined so a
+// rename stays in one place.
+const APARTMENT_LABEL = 'Apartment';
+const PROPERTY_TYPES = [
+  ['house', 'House'],
+  ['apartment', APARTMENT_LABEL],
+  ['maisonette', 'Maisonette'],
+  ['mews', 'Mews'],
+  ['penthouse', 'Penthouse'],
+  ['townhouse', 'Townhouse'],
+];
+
 function openRegisterForm(surf){
   const fid = 'rf' + (++formSeq);
   const fullName = formField(fid, 'full_name', 'Full name *', textInput('text', 'e.g. Tom Baker'), true);
@@ -481,8 +495,8 @@ function openRegisterForm(surf){
   const timeline = formField(fid, 'timeline_weeks', 'Timeline (weeks)', textInput('number', 'Optional'), false);
   const mustHave = formField(fid, 'must_have', 'Must-have', mk('textarea', { rows: '2', placeholder: 'Optional — e.g. garden, parking, near tube' }), false);
 
-  // property types: a group of checkboxes with its own error line
-  const typeBoxes = [['house', 'House'], ['flat', 'Flat'], ['maisonette', 'Maisonette'], ['any', 'Any']].map(t =>
+  // property types: a group of checkboxes with its own error line (see PROPERTY_TYPES above).
+  const typeBoxes = PROPERTY_TYPES.map(t =>
     mk('label', null, [mk('input', { type: 'checkbox', value: t[0], 'data-field': 'property_types' }), ' ' + t[1]]));
   const typesBox = mk('div', { class: 'wf-types', id: fid + '-property_types', role: 'group', 'aria-label': 'Property types' }, typeBoxes);
   const typesErr = mk('div', { class: 'wf-err', id: 'err-' + fid + '-property_types', 'data-err': 'property_types' });
