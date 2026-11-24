@@ -16,9 +16,9 @@ Feature: The new workspace page in a real browser (FS-76)
 
   # ---- session ------------------------------------------------------------
 
-  Scenario: Opening the workspace without a token goes to the login page
+  Scenario: Opening the workspace without a token goes to the login page with next=/workspace
     When I open the workspace with no stored session
-    Then I am on the login page
+    Then the current URL path and query are "/?next=/workspace"
 
   Scenario: Sign out from the account menu clears the session
     Given I am signed in as the agent on the workspace
@@ -26,12 +26,12 @@ Feature: The new workspace page in a real browser (FS-76)
     Then I am on the login page
     And the browser's local storage is empty
 
-  Scenario: A 401 from the backend sends the user to the login page
+  Scenario: A 401 from the backend preserves next=/workspace when sending the user to the login page
     Given I am signed in as the agent on the workspace
     And the backend will answer POST "/bot/register-applicant" with the "unauthorised" response
     When I click the "Register applicant" chip
     And I fill in and submit the registration form for "Tom Baker"
-    Then I am on the login page
+    Then the current URL path and query are "/?next=/workspace"
     And the browser's local storage is empty
 
   # ---- agent input and thread --------------------------------------------
@@ -199,7 +199,7 @@ Feature: The new workspace page in a real browser (FS-76)
     Then the confirmation shows the text "<img src=x onerror=window.__xss=1>" literally
     When I open the welcome email preview
     Then the preview shows the text "<img src=x onerror=window.__xss=1>" literally
-    And the thread contains no image, script or frame elements
+    And the thread contains no active elements that can run code in the top frame
     And window.__xss is undefined
 
   # ---- everything not wired ----------------------------------------------
@@ -305,3 +305,101 @@ Feature: The new workspace page in a real browser (FS-76)
     When I type "register new applicant" in the mobile agent box and tap send
     Then the registration form is shown in the mobile thread
     And the page has no horizontal scroll
+
+  # =========================================================================
+  # FS-76 John comment 11514: demo blockers A (auth return-to) and B (Gmail
+  # draft on /workspace), and the remaining register-form fixes.
+  # =========================================================================
+
+  # ---- A. Return-to allowlist and auth gate on /workspace -----------------
+
+  Scenario: Signing in from /?next=/workspace lands on /workspace
+    When I open the login page at "/?next=/workspace"
+    And I fill in and submit the login form as the agent
+    Then I am on the workspace page
+
+  Scenario: Signing in from / with no next still lands on /chat
+    When I open the login page at "/"
+    And I fill in and submit the login form as the agent
+    Then I am on the chat page
+
+  Scenario: Signing in from /?next=/chat lands on /chat
+    When I open the login page at "/?next=/chat"
+    And I fill in and submit the login form as the agent
+    Then I am on the chat page
+
+  Scenario: Signing in with an off-allowlist next falls back to /chat
+    When I open the login page at "/?next=/admin"
+    And I fill in and submit the login form as the agent
+    Then I am on the chat page
+
+  Scenario: Signing in with a cross-origin next falls back to /chat
+    When I open the login page at "/?next=https://evil.example.com/"
+    And I fill in and submit the login form as the agent
+    Then I am on the chat page
+
+  Scenario: An invalid token on /workspace clears and redirects to login with next=/workspace
+    Given I have the token "not-a-real-jwt" stored
+    When I open the workspace
+    Then the current URL path and query are "/?next=/workspace"
+    And the browser's local storage is empty
+
+  Scenario: A 401 while registering preserves the return-to-/workspace after sign-in
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "unauthorised" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the current URL path and query are "/?next=/workspace"
+    When I fill in and submit the login form as the agent
+    Then I am on the workspace page
+
+  # ---- B. Gmail draft checkbox on /workspace register form ----------------
+
+  Scenario: The registration form has an unticked Gmail draft checkbox
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    Then the registration form has an unticked "Also create a Gmail draft of the welcome email" checkbox
+
+  Scenario: Registering with the Gmail draft checkbox left unticked sends dispatch:false and shows no draft outcome
+    Given HubSpot is faked: registering creates a new contact and one listing matches
+    And I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the last POST to "/bot/register-applicant" sent dispatch set to false
+    And no draft outcome note is shown
+
+  Scenario: Ticking the Gmail draft checkbox sends dispatch:true and renders the draft outcome
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "created_fake_draft" response
+    When I click the "Register applicant" chip
+    And I tick the Gmail draft checkbox and fill in and submit the registration form for "Tom Baker"
+    Then the last POST to "/bot/register-applicant" sent dispatch set to true
+    And a draft outcome note mentions the "fake" transport
+
+  # ---- John's remaining points on the register form -----------------------
+
+  Scenario: Source on the registration form is a dropdown with the fixed options
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    Then the "source" field on the registration form is a select
+    And the "source" options are exactly "Rightmove", "Zoopla", "Referral", "Direct", "Other"
+
+  Scenario: Property types on the registration form use the new multiselect with no "Any"
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    Then the registration form's property type values are exactly "house", "apartment", "maisonette", "mews", "penthouse", "townhouse"
+    And the registration form has no property type labelled "Any"
+    And the label "Apartment" appears exactly once in the registration form
+
+  Scenario: The registration form has no Max bedrooms field
+    Given I am signed in as the agent on the workspace
+    When I click the "Register applicant" chip
+    Then the registration form has no "bedrooms_max" field
+
+  Scenario: The welcome email preview is rendered as HTML in a sandboxed iframe with no allow-scripts
+    Given I am signed in as the agent on the workspace
+    And the backend will answer POST "/bot/register-applicant" with the "created_brochure" response
+    When I click the "Register applicant" chip
+    And I fill in and submit the registration form for "Tom Baker"
+    Then the welcome email preview renders the html body in an iframe whose sandbox does not allow scripts
+    And the iframe's body contains the text "View brochure"

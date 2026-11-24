@@ -97,6 +97,20 @@ STUBBED = {
         draft={"subject": PAYLOAD,
                "html_body": PAYLOAD + "<script>window.__xss=1</script>",
                "text_body": f"Dear {PAYLOAD},"})),
+    # FS-76 blocker B: the server registered and ran the fake Gmail draft transport.
+    "created_fake_draft": (200, {**_registered(
+        matches=[_match(1)],
+        draft={"subject": "Welcome to Curtis Sloane, Tom",
+               "html_body": "<p>Dear Tom,</p>",
+               "text_body": "Dear Tom,\n\nThank you for registering with us."}),
+        "draft_ref": {"transport": "fake"}}),
+    # FS-76 John comment 11514: created response whose html_body carries a brochure button,
+    # so the iframe-sandboxed preview can prove it renders through to the user.
+    "created_brochure": (200, _registered(
+        matches=[_match(1)],
+        draft={"subject": "Welcome to Curtis Sloane, Tom",
+               "html_body": '<p>Dear Tom,</p><p><a class="btn" href="https://example.invalid/brochure" target="_blank">View brochure</a></p>',
+               "text_body": "Dear Tom,\n\nThank you for registering with us."})),
 }
 
 
@@ -323,7 +337,7 @@ def _fill_registration(page: Page, name: str) -> None:
     reg.locator("[data-field=budget]").fill("3500000")
     reg.locator("[data-field=financing]").select_option("cash")
     reg.locator("[data-field=preferred_channel]").select_option("email")
-    reg.locator("[data-field=source]").fill("Rightmove")
+    reg.locator("[data-field=source]").select_option("Rightmove")
     reg.locator("[data-field=property_types][value=house]").check()
 
 
@@ -565,9 +579,17 @@ def step_preview_literal(page: Page, text: str):
     expect(cards(page, "details").last).to_contain_text(text)
 
 
-@then("the thread contains no image, script or frame elements")
+@then("the thread contains no active elements that can run code in the top frame")
 def step_no_active_elements(page: Page):
-    expect(page.locator("#agent-body img, #agent-body script, #agent-body iframe, #agent-body object, #agent-body embed")).to_have_count(0)
+    # img/script/object/embed in the top frame are forbidden outright - they can run code there.
+    expect(page.locator("#agent-body img, #agent-body script, #agent-body object, #agent-body embed")).to_have_count(0)
+    # iframes are allowed only when sandboxed in a way that cannot execute scripts
+    # (the welcome preview puts the applicant's draft HTML in one, see FS-76).
+    iframes = page.locator("#agent-body iframe")
+    for i in range(iframes.count()):
+        sandbox = iframes.nth(i).get_attribute("sandbox")
+        assert sandbox is not None, "iframe without a sandbox attribute"
+        assert "allow-scripts" not in sandbox.split(), f"iframe sandbox allows scripts: {sandbox!r}"
 
 
 @then("window.__xss is undefined")
@@ -658,3 +680,153 @@ def step_no_horizontal_scroll(page: Page):
         " view: document.documentElement.clientWidth})"
     )
     assert widths["doc"] <= widths["view"] and widths["body"] <= widths["view"], widths
+
+
+# ===========================================================================
+# FS-76 John comment 11514: new steps for demo blockers A, B and John's points
+# ===========================================================================
+
+# ---- When: login page and workspace navigation ----------------------------
+
+@when(parsers.parse('I open the login page at "{path_and_query}"'))
+def step_open_login_at(page: Page, path_and_query: str):
+    page.goto(path_and_query)
+    expect(page.locator("#submitBtn")).to_be_visible()
+
+
+@when("I fill in and submit the login form as the agent")
+def step_fill_submit_login(page: Page, agent_credentials):
+    page.fill("#email", agent_credentials.email)
+    page.fill("#password", agent_credentials.password)
+    page.click("#submitBtn")
+
+
+@when("I open the workspace")
+def step_open_workspace_plain(page: Page):
+    page.goto("/workspace")
+
+
+@given(parsers.parse('I have the token "{token}" stored'))
+def step_seed_token(page: Page, token: str):
+    # localStorage belongs to an origin, so we have to be on one of our pages first.
+    page.goto("/")
+    page.evaluate(
+        "token => { localStorage.setItem('token', token); localStorage.setItem('role', 'agent'); }",
+        token,
+    )
+
+
+# ---- Then: URLs and landing pages ----------------------------------------
+
+@then("I am on the workspace page")
+def step_on_workspace_page(page: Page):
+    expect(page).to_have_url(re.compile(r"/workspace$"))
+    expect(page.locator("#agent-input")).to_be_visible()
+
+
+@then(parsers.parse('the current URL path and query are "{expected}"'))
+def step_current_url_pq(page: Page, base_url: str, expected: str):
+    expect(page).to_have_url(f"{base_url}{expected}")
+
+
+# ---- When: register form, Gmail draft checkbox ---------------------------
+
+@when(parsers.parse('I tick the Gmail draft checkbox and fill in and submit the registration form for "{name}"'))
+def step_tick_and_submit(page: Page, name: str):
+    _fill_registration(page, name)
+    reg = form(page, "register")
+    reg.locator("label", has_text=re.compile("Also create a Gmail draft")).locator("input[type=checkbox]").check()
+    reg.get_by_role("button", name="Register applicant").click()
+
+
+# ---- Then: register form shape (A, B and John's points) ------------------
+
+@then(parsers.parse('the registration form has an unticked "{label}" checkbox'))
+def step_unticked_checkbox(page: Page, label: str):
+    cb = form(page, "register").locator("label", has_text=re.compile(re.escape(label))).locator("input[type=checkbox]")
+    expect(cb).to_have_count(1)
+    expect(cb).not_to_be_checked()
+
+
+@then(parsers.parse('the "{field}" field on the registration form is a select'))
+def step_field_is_select(page: Page, field: str):
+    el = form(page, "register").locator(f"[data-field={field}]")
+    expect(el).to_have_count(1)
+    tag = el.evaluate("el => el.tagName").lower()
+    assert tag == "select", f"{field} is a <{tag}>, not <select>"
+
+
+@then(parsers.parse('the "{field}" options are exactly {options}'))
+def step_field_options_exactly(page: Page, field: str, options: str):
+    want = [m.group(1) for m in re.finditer(r'"([^"]+)"', options)]
+    opts = form(page, "register").locator(f"[data-field={field}] option")
+    actual = [t.strip() for t in opts.all_text_contents() if t.strip() and t.strip() not in ("Select…",)]
+    assert actual == want, f"options were {actual!r}, expected {want!r}"
+
+
+@then(parsers.parse("the registration form's property type values are exactly {values}"))
+def step_property_type_values(page: Page, values: str):
+    want = [m.group(1) for m in re.finditer(r'"([^"]+)"', values)]
+    checkboxes = form(page, "register").locator("[data-field=property_types]")
+    actual = checkboxes.evaluate_all("els => els.map(el => el.value)")
+    assert actual == want, f"property type values were {actual!r}, expected {want!r}"
+
+
+@then(parsers.parse('the registration form has no property type labelled "{label}"'))
+def step_no_property_type_label(page: Page, label: str):
+    labels = form(page, "register").locator(".wf-types label").all_text_contents()
+    labels = [t.strip() for t in labels]
+    assert label not in labels, f"found a {label!r} property type label, labels were {labels!r}"
+
+
+@then(parsers.parse('the label "{label}" appears exactly once in the registration form'))
+def step_label_once(page: Page, label: str):
+    reg = form(page, "register")
+    text = reg.evaluate("el => el.innerText")
+    count = text.count(label)
+    assert count == 1, f"{label!r} appeared {count} times in the registration form"
+
+
+@then(parsers.parse('the registration form has no "{field}" field'))
+def step_no_field(page: Page, field: str):
+    expect(form(page, "register").locator(f"[data-field={field}]")).to_have_count(0)
+
+
+# ---- Then: dispatch assertions on the most recent POST -------------------
+
+@then(parsers.parse('the last POST to "{path}" sent dispatch set to {value}'))
+def step_last_post_dispatch(sent_requests, path: str, value: str):
+    from tests.e2e.conftest import posts_to
+    posts = posts_to(sent_requests, path)
+    assert posts, f"no POST to {path} was sent"
+    j = posts[-1].json or {}
+    expected = {"true": True, "false": False}[value]
+    assert j.get("dispatch") is expected, f"dispatch was {j.get('dispatch')!r}, expected {expected!r}"
+
+
+@then("no draft outcome note is shown")
+def step_no_draft_outcome(page: Page):
+    expect(page.locator("#agent-body [data-draft-outcome]")).to_have_count(0)
+
+
+@then(parsers.parse('a draft outcome note mentions the "{transport}" transport'))
+def step_draft_outcome_transport(page: Page, transport: str):
+    note = page.locator("#agent-body [data-draft-outcome]").last
+    expect(note).to_contain_text(re.compile(rf"\b{re.escape(transport)}\b.*transport", re.IGNORECASE))
+
+
+# ---- Then: welcome-preview iframe (John comment 11514, iframe fix) -------
+
+@then("the welcome email preview renders the html body in an iframe whose sandbox does not allow scripts")
+def step_iframe_sandbox(page: Page):
+    iframe = page.locator("#agent-body details iframe").last
+    expect(iframe).to_be_visible()
+    sandbox = iframe.get_attribute("sandbox")
+    assert sandbox is not None, "iframe has no sandbox attribute"
+    assert "allow-scripts" not in sandbox.split(), f"iframe sandbox allows scripts: {sandbox!r}"
+
+
+@then(parsers.parse('the iframe\'s body contains the text "{text}"'))
+def step_iframe_body_text(page: Page, text: str):
+    frame = page.frame_locator("#agent-body details iframe").last
+    expect(frame.locator("body")).to_contain_text(text)
