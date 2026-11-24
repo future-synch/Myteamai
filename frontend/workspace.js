@@ -488,6 +488,15 @@ function openRegisterForm(surf){
   const typesNode = mk('div', { class: 'wf-group' }, [
     mk('div', { class: 'wf-label', text: 'Property types * (select one or more)' }), typesBox, typesErr]);
 
+  // FS-76 blocker B: let the agent also create a Gmail draft of the welcome
+  // email. Unticked by default: register only. Mirrors chat.html's r-dispatch.
+  const draftCheckbox = mk('input', { type: 'checkbox', 'data-field': 'dispatch' });
+  const draftLabel = mk('label', { class: 'wf-check', style: 'display:flex;align-items:center;gap:6px;font-size:12px' },
+    [draftCheckbox, mk('span', { text: 'Also create a Gmail draft of the welcome email' })]);
+  const draftHint = mk('div', { class: 'wf-hint', style: 'font-size:11px;color:#5F5E5A;margin-top:3px' ,
+    text: 'Nothing is sent. The draft appears in the shared mailbox for you to review, edit and send from Gmail.' });
+  const draftGroup = mk('div', { class: 'wf-group' }, [draftLabel, draftHint]);
+
   const submit = mk('button', { type: 'submit', class: 'wf-submit', text: 'Register applicant' });
   let formRow = null;
   const form = mk('form', { class: 'wf', 'data-form': 'register', novalidate: true }, [
@@ -496,8 +505,8 @@ function openRegisterForm(surf){
     mk('div', { class: 'wf-row' }, [budget.node, bedMin.node]),
     mk('div', { class: 'wf-row' }, [bedMax.node, timeline.node]),
     mk('div', { class: 'wf-row' }, [financing.node, channel.node]),
-    source.node, typesNode, mustHave.node,
-    mk('div', { class: 'wf-note', text: 'Creates the applicant and suggests matches. No email is created or sent.' }),
+    source.node, typesNode, mustHave.node, draftGroup,
+    mk('div', { class: 'wf-note', text: 'Registers the applicant and suggests matches. The Gmail draft is only created if the box above is ticked.' }),
     submit
   ]);
 
@@ -533,7 +542,7 @@ function openRegisterForm(surf){
     const body = {
       full_name, email: emailV, phone: phoneV, budget: budgetV, bedrooms_min: bedMinV,
       property_types, financing: financingV, preferred_channel: channelV, source: sourceV,
-      dispatch: false
+      dispatch: draftCheckbox.checked
     };
     if (bedMaxRaw) body.bedrooms_max = parseInt(bedMaxRaw, 10);
     if (timelineRaw) body.timeline_weeks = parseInt(timelineRaw, 10);
@@ -605,10 +614,44 @@ function renderRegisterResult(surf, r){
     }
     agentMsg(surf, 'Register applicant', kids, 'info');
   }
-  if (Array.isArray(data.errors) && data.errors.length) {
-    note(surf, 'Registered, with warnings: ' + data.errors.join(', '), 'warn');
+  // DRAFT_FAILED entries are reported by addDraftOutcome with the full reason;
+  // keep the generic "with warnings" line for everything else.
+  const nonDraftErrors = (Array.isArray(data.errors) ? data.errors : [])
+    .filter(e => !(typeof e === 'string' && e.indexOf('DRAFT_FAILED') === 0));
+  if (nonDraftErrors.length) {
+    note(surf, 'Registered, with warnings: ' + nonDraftErrors.join(', '), 'warn');
   }
+  addDraftOutcome(surf, data);
   return true;
+}
+
+// FS-76 blocker B: when the server was asked to make a Gmail draft, tell the
+// agent what actually happened. Only called from renderRegisterResult, so the
+// note never appears when dispatch was false (draft_ref null, no DRAFT_FAILED).
+// The row carries data-draft-outcome so the e2e suite can find it.
+function addDraftOutcome(surf, data){
+  const outcome = (text, tone) => {
+    const row = note(surf, text, tone);
+    row.setAttribute('data-draft-outcome', '1');
+    return row;
+  };
+  const ref = data && data.draft_ref;
+  if (ref) {
+    if (ref.transport === 'gmail') {
+      outcome('✓ Gmail draft created in the shared mailbox' + (ref.mailbox ? ' (' + ref.mailbox + ')' : '') +
+        '. Open Gmail → Drafts to review, edit and send it. Nothing has been sent.', 'ok');
+    } else {
+      outcome('ℹ️ Test mode: the draft step ran with the "' + ref.transport + '" transport, so no Gmail draft exists.', 'info');
+    }
+  }
+  const errs = (data && Array.isArray(data.errors)) ? data.errors : [];
+  errs.forEach(e => {
+    if (typeof e === 'string' && e.indexOf('DRAFT_FAILED') === 0) {
+      const reason = e.replace(/^DRAFT_FAILED:\s*/, '');
+      outcome('⚠️ The applicant is registered, but the Gmail draft could not be created: ' + reason +
+        ' The welcome email text above is still available to copy.', 'warn');
+    }
+  });
 }
 
 // ── entry points used by the page ─────────────────────────────
