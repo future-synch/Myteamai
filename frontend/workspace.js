@@ -475,7 +475,9 @@ function openRegisterForm(surf){
     ['cash', 'Cash'], ['mortgage_aip', 'Mortgage (AIP)'], ['mortgage_no_aip', 'Mortgage (no AIP)'], ['unknown', 'Unknown']]), true);
   const channel  = formField(fid, 'preferred_channel', 'Preferred channel *', selectOf([
     ['email', 'Email'], ['phone', 'Phone'], ['whatsapp', 'WhatsApp']]), true);
-  const source   = formField(fid, 'source', 'Source *', textInput('text', 'Rightmove, Referral, etc.'), true);
+  // FS-76 John comment 11514: Source is a fixed list, not free text.
+  const source   = formField(fid, 'source', 'Source *',
+    selectOf(['Rightmove', 'Zoopla', 'Referral', 'Direct', 'Other'].map(s => [s, s])), true);
   const timeline = formField(fid, 'timeline_weeks', 'Timeline (weeks)', textInput('number', 'Optional'), false);
   const mustHave = formField(fid, 'must_have', 'Must-have', mk('textarea', { rows: '2', placeholder: 'Optional — e.g. garden, parking, near tube' }), false);
 
