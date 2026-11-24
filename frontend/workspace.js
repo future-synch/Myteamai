@@ -484,7 +484,8 @@ function openRegisterForm(surf){
   const phone    = formField(fid, 'phone', 'Phone *', textInput('text', '+44 7700 900123'), true);
   const budget   = formField(fid, 'budget', 'Budget (£) *', textInput('number', 'e.g. 2500000'), true);
   const bedMin   = formField(fid, 'bedrooms_min', 'Bedrooms min *', textInput('number', 'e.g. 3', '2'), true);
-  const bedMax   = formField(fid, 'bedrooms_max', 'Bedrooms max', textInput('number', 'Optional'), false);
+  // FS-76 John comment 11514: no "Bedrooms max" field. The matching algorithm
+  // does not use it and the agent kept skipping it, so it was noise on the form.
   const financing = formField(fid, 'financing', 'Financing *', selectOf([
     ['cash', 'Cash'], ['mortgage_aip', 'Mortgage (AIP)'], ['mortgage_no_aip', 'Mortgage (no AIP)'], ['unknown', 'Unknown']]), true);
   const channel  = formField(fid, 'preferred_channel', 'Preferred channel *', selectOf([
@@ -519,14 +520,14 @@ function openRegisterForm(surf){
     mk('div', { class: 'wf-title', text: 'Register applicant' }),
     fullName.node, email.node, phone.node,
     mk('div', { class: 'wf-row' }, [budget.node, bedMin.node]),
-    mk('div', { class: 'wf-row' }, [bedMax.node, timeline.node]),
+    mk('div', { class: 'wf-row' }, [timeline.node]),
     mk('div', { class: 'wf-row' }, [financing.node, channel.node]),
     source.node, typesNode, mustHave.node, draftGroup,
     mk('div', { class: 'wf-note', text: 'Registers the applicant and suggests matches. The Gmail draft is only created if the box above is ticked.' }),
     submit
   ]);
 
-  const all = [fullName, email, phone, budget, bedMin, bedMax, financing, channel, source, timeline, mustHave];
+  const all = [fullName, email, phone, budget, bedMin, financing, channel, source, timeline, mustHave];
 
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -536,7 +537,7 @@ function openRegisterForm(surf){
     const v = f => f.control.value.trim();
     const full_name = v(fullName), emailV = v(email), phoneV = v(phone);
     const budgetV = parseInt(budget.control.value, 10), bedMinV = parseInt(bedMin.control.value, 10);
-    const bedMaxRaw = bedMax.control.value, timelineRaw = timeline.control.value;
+    const timelineRaw = timeline.control.value;
     const financingV = financing.control.value, channelV = channel.control.value;
     const sourceV = v(source), mustV = v(mustHave);
     const property_types = Array.from(typesBox.querySelectorAll('input:checked')).map(x => x.value);
@@ -560,7 +561,6 @@ function openRegisterForm(surf){
       property_types, financing: financingV, preferred_channel: channelV, source: sourceV,
       dispatch: draftCheckbox.checked
     };
-    if (bedMaxRaw) body.bedrooms_max = parseInt(bedMaxRaw, 10);
     if (timelineRaw) body.timeline_weeks = parseInt(timelineRaw, 10);
     if (mustV) body.must_have = mustV;
 
