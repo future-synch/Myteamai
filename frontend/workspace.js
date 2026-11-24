@@ -582,16 +582,43 @@ function openRegisterForm(surf){
   fullName.control.focus();
 }
 
-// Subject and plain-text body only, as text. The HTML body is never rendered.
+// Collapsed, safe preview of the composed welcome email (FS-76 John comment
+// 11514): subject and text_body are inserted with textContent, html_body is
+// rendered inside a sandboxed iframe so the "View brochure" button appears as
+// a button, not a raw link. sandbox="allow-popups allow-popups-to-escape-sandbox"
+// leaves scripts and on* handlers off, and allow-same-origin is off too, so the
+// frame has a null origin and cannot touch the workspace page. The button can
+// still open the brochure in a new tab thanks to allow-popups.
 function welcomePreview(draft){
-  if (!draft || (!draft.subject && !draft.text_body)) return null;
+  if (!draft || (!draft.subject && !draft.text_body && !draft.html_body)) return null;
   const details = mk('details', { style: 'margin-top:8px' }, [
     mk('summary', { style: 'cursor:pointer;font-size:11px;font-weight:500', text: 'Welcome email preview (not sent)' })
   ]);
   if (draft.subject) {
     details.appendChild(mk('div', { style: 'margin:6px 0' }, [mk('strong', { text: 'Subject: ' }), String(draft.subject)]));
   }
-  if (draft.text_body) details.appendChild(mk('div', { style: 'white-space:pre-wrap', text: String(draft.text_body) }));
+  if (draft.html_body) {
+    const frame = mk('iframe', {
+      sandbox: 'allow-popups allow-popups-to-escape-sandbox',
+      referrerpolicy: 'no-referrer',
+      title: 'Welcome email as the applicant will see it',
+      class: 'email-preview-frame',
+      style: 'width:100%;height:520px;border:1px solid #D3D1C7;border-radius:6px;background:#fff;margin-top:6px'
+    });
+    frame.srcdoc = '<!doctype html><meta charset="utf-8"><base target="_blank">' +
+      '<body style="margin:16px;font:14px/1.45 Arial,Helvetica,sans-serif;color:#202124;background:#fff">' +
+      String(draft.html_body) + '</body>';
+    details.appendChild(frame);
+    // Keep the preview collapsed by default (TS, matches the existing /chat
+    // "created" response). The brochure button inside the iframe appears when
+    // the agent opens the preview.
+  }
+  if (draft.text_body) {
+    const dividerStyle = draft.html_body
+      ? 'white-space:pre-wrap;margin-top:8px;padding-top:6px;border-top:1px dashed #D3D1C7;font-size:11px;color:#5F5E5A'
+      : 'white-space:pre-wrap;margin-top:6px';
+    details.appendChild(mk('div', { style: dividerStyle, text: String(draft.text_body) }));
+  }
   return details;
 }
 

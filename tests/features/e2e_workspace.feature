@@ -401,5 +401,6 @@ Feature: The new workspace page in a real browser (FS-76)
     And the backend will answer POST "/bot/register-applicant" with the "created_brochure" response
     When I click the "Register applicant" chip
     And I fill in and submit the registration form for "Tom Baker"
+    And I open the welcome email preview
     Then the welcome email preview renders the html body in an iframe whose sandbox does not allow scripts
     And the iframe's body contains the text "View brochure"
