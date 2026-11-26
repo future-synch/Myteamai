@@ -20,11 +20,23 @@ except ImportError:  # pragma: no cover
     JWT_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
-# Hardcoded logins (TS Section — replace at M5)
+# MVP logins (TS Section — replace with database-backed auth at M5)
+#
+# Passwords come from the environment so a rotation is a Render dashboard edit,
+# not a code change. The literal fallbacks ("agent123" / "admin123") keep the
+# existing local-dev and e2e suites green when AGENT_PASSWORD / ADMIN_PASSWORD
+# are not set. On Render, set AGENT_PASSWORD and ADMIN_PASSWORD to real values
+# in the service's Environment tab; the fallbacks are then unused.
 # ---------------------------------------------------------------------------
 _USERS = {
-    "agent@curtissloane.com": {"password": "agent123", "role": "agent"},
-    "admin@curtissloane.com": {"password": "admin123", "role": "admin"},
+    "agent@curtissloane.com": {
+        "password": os.getenv("AGENT_PASSWORD", "agent123"),
+        "role": "agent",
+    },
+    "admin@curtissloane.com": {
+        "password": os.getenv("ADMIN_PASSWORD", "admin123"),
+        "role": "admin",
+    },
 }
 
 SECRET_KEY = os.getenv("JWT_SECRET", "local-dev-secret-change-me")
